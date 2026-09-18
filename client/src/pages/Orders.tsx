@@ -72,7 +72,7 @@ const Orders: React.FC = () => {
   const fetchOrders = useCallback(async () => {
     try {
       const res = await api.get('/orders', { params: { limit: 300 } })
-      setOrders(res.data.data || [])
+         setOrders(res.data.data?.items || [])
     } catch (err) {
       toast.error(getErrorMessage(err))
     } finally {
