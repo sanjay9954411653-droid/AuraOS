@@ -59,7 +59,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ orderId: initialOrderId, onCl
       setOrderTotal(total)
 
       // Sum PAID payments for this order
-         const allPayments: Payment[] = res.data.data?.items || []
+           const allPayments: Payment[] = paymentsRes.data.data?.items || []
       const paid = allPayments
         .filter((p) => p.order_id === selectedOrderId && p.status === 'PAID')
         .reduce((s, p) => s + Number(p.amount), 0)
