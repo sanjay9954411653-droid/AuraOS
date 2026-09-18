@@ -48,7 +48,7 @@ const Kitchen: React.FC = () => {
   const fetchOrders = useCallback(async () => {
     try {
       const res = await api.get('/orders', { params: { limit: 100 } })
-      const all: OrderWithItems[] = res.data.data || []
+         const all: OrderWithItems[] = res.data.data?.items || []
       // Kitchen only shows pre-service stages. READY orders leave the kitchen display
       // immediately — waiter handles payment from the Orders / Tables screen.
       setOrders(all.filter((o) => ['CREATED', 'ACCEPTED', 'PREPARING'].includes(o.status)))
