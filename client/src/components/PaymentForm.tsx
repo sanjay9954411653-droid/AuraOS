@@ -34,7 +34,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ orderId: initialOrderId, onCl
     if (!initialOrderId) {
       api.get('/orders', { params: { limit: 100 } })
         .then((res) => {
-          const active = (res.data.data || []).filter(
+            const active = (res.data.data?.items || []).filter(
             (o: Order) => !['COMPLETED', 'CANCELLED'].includes(o.status)
           )
           setOrders(active)
