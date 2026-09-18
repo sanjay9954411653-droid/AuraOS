@@ -57,7 +57,4 @@ ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_restaurant_id_fkey;
 ALTER TABLE payments ADD CONSTRAINT payments_restaurant_id_fkey
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE RESTRICT;
 
--- subscription_invoices.restaurant_id: CASCADE → RESTRICT
-ALTER TABLE subscription_invoices DROP CONSTRAINT IF EXISTS subscription_invoices_restaurant_id_fkey;
-ALTER TABLE subscription_invoices ADD CONSTRAINT subscription_invoices_restaurant_id_fkey
-  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE RESTRICT;
+
