@@ -4,6 +4,7 @@
    RUN npm install
    COPY . .
    ENV VITE_API_URL=https://auraos-production-b1ff.up.railway.app/api/v1
+      ENV VITE_SOCKET_URL=https://auraos-production-b1ff.up.railway.app
    RUN npm run build
    RUN npm install -g serve
    EXPOSE 3001
