@@ -46,7 +46,7 @@ const Payments: React.FC = () => {
   const fetchPayments = async () => {
     try {
       const res = await api.get('/payments', { params: { limit: 500 } })
-      setPayments(res.data.data || [])
+         setPayments(res.data.data?.items || [])
     } catch (err) {
       toast.error(getErrorMessage(err))
     } finally {
