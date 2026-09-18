@@ -34,7 +34,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ orderId: initialOrderId, onCl
     if (!initialOrderId) {
       api.get('/orders', { params: { limit: 100 } })
         .then((res) => {
-            const active = (res.data.data?.items || []).filter(
+               const active = (res.data.data?.items || []).filter(
             (o: Order) => !['COMPLETED', 'CANCELLED'].includes(o.status)
           )
           setOrders(active)
@@ -59,7 +59,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ orderId: initialOrderId, onCl
       setOrderTotal(total)
 
       // Sum PAID payments for this order
-      const allPayments: Payment[] = paymentsRes.data.data || []
+         const allPayments: Payment[] = res.data.data?.items || []
       const paid = allPayments
         .filter((p) => p.order_id === selectedOrderId && p.status === 'PAID')
         .reduce((s, p) => s + Number(p.amount), 0)
