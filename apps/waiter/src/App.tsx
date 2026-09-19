@@ -37,12 +37,16 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 // ── App ───────────────────────────────────────────────────────────────────────
 const App: React.FC = () => {
-  const { restoreSession } = useAuthStore()
-  const { fetchAll } = useMenuStore()
+     const { restoreSession, user } = useAuthStore()
+   const { fetchAll } = useMenuStore()
 
-  useEffect(() => {
-    restoreSession().then(() => fetchAll())
-  }, [restoreSession, fetchAll])
+   useEffect(() => {
+     restoreSession()
+   }, [restoreSession])
+
+   useEffect(() => {
+     if (user) fetchAll()
+   }, [user, fetchAll])
 
   return (
     <>
