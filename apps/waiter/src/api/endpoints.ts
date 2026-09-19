@@ -57,8 +57,7 @@ export const ordersApi = {
     }),
 
   list: (params?: { limit?: number; offset?: number }) =>
-    api.get<{ success: boolean; data: Order[] }>('/orders', { params }),
-
+        api.get<{ success: boolean; data: { items: Order[]; total: number; limit: number; offset: number; hasMore: boolean } }>('/orders', { params }),
   getById: (id: string) =>
     api.get<{ success: boolean; data: { order: Order } }>(`/orders/${id}`),
 
