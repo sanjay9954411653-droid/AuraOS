@@ -57,8 +57,6 @@ export const useOrderStore = create<OrderState>()(
         try {
           const res = await ordersApi.create(fullPayload)
           const order = res.data.data.order
-          list: (params?: { limit?: number; offset?: number }) =>
-  api.get<{ success: boolean; data: { items: Order[]; total: number; limit: number; offset: number; hasMore: boolean } }>('/orders', { params }),
           return order
         } catch (err: any) {
           // Network error — queue for later
