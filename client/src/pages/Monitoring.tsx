@@ -48,10 +48,7 @@ interface HealthCheck {
 interface MetricsSnapshot {
   uptime_seconds: number;
   memory: { rss_mb: number; heap_used_mb: number; heap_total_mb: number };
-  request_count: number;
-  error_count: number;
-  slow_count: number;
-  error_rate: number;
+   requests: { total: number; errors: number; slow: number; error_rate: number };
 }
 
 interface CapturedError {
@@ -345,11 +342,11 @@ const MonitoringContent: React.FC = () => {
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-slate-500">Requests</p>
                 <p className="text-lg font-bold text-slate-900">
-                  {metrics.request_count.toLocaleString()}
+                  {metrics.requests.total.toLocaleString()}
                 </p>
-                {metrics.slow_count > 0 && (
+                {metrics.requests.slow > 0 && (
                   <p className="text-xs text-amber-500">
-                    {metrics.slow_count} slow
+                    {metrics.requests.slow} slow
                   </p>
                 )}
               </div>
@@ -363,10 +360,10 @@ const MonitoringContent: React.FC = () => {
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-slate-500">Errors</p>
                 <p className="text-lg font-bold text-slate-900">
-                  {metrics.error_count.toLocaleString()}
+                  {metrics.requests.errors.toLocaleString()}
                 </p>
                 <p className="text-xs text-slate-400">
-                  Rate: {(metrics.error_rate * 100).toFixed(1)}%
+                  Rate: {(metrics.requests.error_rate * 100).toFixed(1)}%
                 </p>
               </div>
             </Card>
