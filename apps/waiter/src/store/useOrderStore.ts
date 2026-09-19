@@ -44,7 +44,7 @@ export const useOrderStore = create<OrderState>()(
         set({ isLoading: true })
         try {
           const res = await ordersApi.list({ limit: 50 })
-             set({ orders: res.data.data || [], isLoading: false })
+            set({ orders: res.data.data?.items || [], isLoading: false })
         } catch {
           set({ isLoading: false })
         }
@@ -57,7 +57,8 @@ export const useOrderStore = create<OrderState>()(
         try {
           const res = await ordersApi.create(fullPayload)
           const order = res.data.data.order
-          set((state) => ({ orders: [order, ...state.orders] }))
+          list: (params?: { limit?: number; offset?: number }) =>
+  api.get<{ success: boolean; data: { items: Order[]; total: number; limit: number; offset: number; hasMore: boolean } }>('/orders', { params }),
           return order
         } catch (err: any) {
           // Network error — queue for later
