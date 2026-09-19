@@ -44,7 +44,7 @@ export const useOrderStore = create<OrderState>()(
         set({ isLoading: true })
         try {
           const res = await ordersApi.list({ limit: 50 })
-          set({ orders: res.data.data || [], isLoading: false })
+             set({ orders: res.data.data?.items || [], isLoading: false })
         } catch {
           set({ isLoading: false })
         }
