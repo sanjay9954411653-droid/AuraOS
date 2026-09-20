@@ -5,6 +5,7 @@
  *   - mall:       customer enters name + phone, picks payment method
  *
  * URL: /customer?slug=demo-kitchen
+ * URL (scanned table QR): /customer?slug=demo-kitchen&t=<qr_token>
  */
 
 import { useEffect, useState, useMemo } from 'react'
@@ -30,7 +31,7 @@ const publicApi = axios.create({
 
 type QRMode = 'restaurant' | 'mall'
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'ONLINE'
-type Step = 'info' | 'menu' | 'cart' | 'confirm'
+type Step = 'info' | 'pin' | 'menu' | 'cart' | 'confirm'
 
 // ── Modifier types ───────────────────────────────────────────────────────────
 
@@ -95,6 +96,7 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string; desc
 const CustomerApp: React.FC = () => {
   const [searchParams] = useSearchParams()
   const slug = searchParams.get('slug') || 'demo-kitchen'
+  const qrToken = searchParams.get('t') || ''
 
   // Data
   const [restaurantName, setRestaurantName] = useState('Restaurant')
@@ -108,6 +110,11 @@ const CustomerApp: React.FC = () => {
   // Customer info (restaurant mode)
   const [tableId, setTableId] = useState<string>('')
   const [tableNumber, setTableNumber] = useState<string>('')
+  const [tableLocked, setTableLocked] = useState(false)   // true once table is auto-picked from a scanned QR
+  const [tablePasscode, setTablePasscode] = useState('')  // verified PIN, sent along with the order
+  const [pinInput, setPinInput] = useState('')
+  const [pinError, setPinError] = useState('')
+  const [verifyingPin, setVerifyingPin] = useState(false)
 
   // Customer info (mall mode)
   const [customerName, setCustomerName] = useState('')
@@ -160,6 +167,44 @@ const CustomerApp: React.FC = () => {
       })
       .finally(() => setLoading(false))
   }, [slug])
+
+  // ── Resolve table from a scanned per-table QR code ───────────────────────
+  useEffect(() => {
+    if (!qrToken) return
+    publicApi.get(`/public/tables/${slug}/qr/${qrToken}`)
+      .then((res) => {
+        const t = res.data.data
+        setTableId(t.id)
+        setTableNumber(t.table_number)
+        setTableLocked(true)
+        setStep('pin')
+      })
+      .catch((err) => {
+        setError(err.response?.data?.error?.message || 'This QR code is invalid or the table is no longer active')
+      })
+  }, [qrToken, slug])
+
+  // ── Verify the table PIN before letting the customer see the menu ────────
+  const handleVerifyPin = async () => {
+    if (!pinInput.trim()) {
+      setPinError('Enter the PIN printed on your table')
+      return
+    }
+    setVerifyingPin(true)
+    setPinError('')
+    try {
+      await publicApi.post(`/public/tables/${slug}/verify-passcode`, {
+        table_id: tableId,
+        passcode: pinInput.trim(),
+      })
+      setTablePasscode(pinInput.trim())
+      setStep('menu')
+    } catch (err: any) {
+      setPinError(err.response?.data?.error?.message || 'Incorrect PIN — please try again')
+    } finally {
+      setVerifyingPin(false)
+    }
+  }
 
   // ── Filtered menu ──────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -300,7 +345,7 @@ const CustomerApp: React.FC = () => {
       if (!customerPhone.trim()) { setInfoError('Please enter your phone number'); return }
       if (customerPhone.replace(/\D/g, '').length < 10) { setInfoError('Please enter a valid 10-digit phone number'); return }
     }
-    setStep('menu')
+    setStep(qrMode === 'restaurant' ? 'pin' : 'menu')
   }
 
   // ── Place order ────────────────────────────────────────────────────────────
@@ -325,6 +370,7 @@ const CustomerApp: React.FC = () => {
       if (qrMode === 'restaurant') {
         if (tableId) body.table_id = tableId
         body.table_number = tableNumber || tables.find((t) => t.id === tableId)?.table_number
+        body.table_passcode = tablePasscode
       } else {
         body.customer_name = customerName
         body.customer_phone = customerPhone
@@ -469,7 +515,7 @@ const CustomerApp: React.FC = () => {
   }
 
   // ── Loading ────────────────────────────────────────────────────────────────
-  if (loading) {
+  if (loading || (qrToken && !tableLocked && !error)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -609,6 +655,58 @@ const CustomerApp: React.FC = () => {
               View Menu
               <ChevronRightIcon className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── STEP 1.5: PIN entry ─────────────────────────────────────────────────────
+  if (step === 'pin') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+          <div className="bg-indigo-600 px-6 py-8 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-3">
+              <span className="text-3xl">🔒</span>
+            </div>
+            <h1 className="text-2xl font-bold text-white">Table {tableNumber}</h1>
+            <p className="text-indigo-200 text-sm mt-1">Enter the PIN printed on your table</p>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={6}
+              autoFocus
+              placeholder="••••"
+              value={pinInput}
+              onChange={(e) => { setPinInput(e.target.value.replace(/\D/g, '')); setPinError('') }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleVerifyPin() }}
+              className="form-input w-full text-center text-3xl font-bold tracking-[0.5em] py-4"
+            />
+
+            {pinError && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{pinError}</p>
+            )}
+
+            <button
+              onClick={handleVerifyPin}
+              disabled={verifyingPin}
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-colors disabled:opacity-50"
+            >
+              {verifyingPin ? 'Checking…' : 'Continue'}
+            </button>
+
+            {!tableLocked && (
+              <button
+                onClick={() => setStep('info')}
+                className="w-full text-sm text-gray-400 hover:text-gray-600"
+              >
+                ← Choose a different table
+              </button>
+            )}
           </div>
         </div>
       </div>
