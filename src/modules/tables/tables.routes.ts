@@ -33,4 +33,7 @@ router.patch('/:id', authenticate, authorize('ADMIN'), checkSubscription, (req, 
 // Delete table (Admin only - dangerous operation)
 router.delete('/:id', authenticate, authorize('ADMIN'), checkSubscription, (req, res, next) => tablesController.delete(req, res, next));
 
+// Regenerate a table's QR code + passcode (Admin only)
+router.post('/:id/regenerate-qr', authenticate, authorize('ADMIN'), checkSubscription, (req, res, next) => tablesController.regenerateQr(req, res, next));
+
 export default router;
