@@ -20,6 +20,8 @@ export interface Table {
   table_number: string;
   seats: number;
   is_active: boolean;
+  qr_token: string;
+  passcode: string;
   created_at: Date;
   updated_at: Date;
 }
