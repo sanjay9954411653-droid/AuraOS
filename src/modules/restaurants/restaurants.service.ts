@@ -2,8 +2,10 @@ import { restaurantsRepository } from './restaurants.repository';
 import {
   Restaurant,
   RestaurantStats,
+  RestaurantTheme,
   CreateRestaurantRequest,
   UpdateRestaurantRequest,
+  UpdateThemeRequest,
 } from './restaurants.types';
 import { ConflictError, NotFoundError, BadRequestError } from '@/shared/errors/AppError';
 
@@ -147,6 +149,16 @@ export class RestaurantsService {
     if (payload.qsr_enabled !== undefined) { updates.qsr_enabled = payload.qsr_enabled; }
     if (payload.token_prefix !== undefined) { updates.token_prefix = payload.token_prefix; }
     if (payload.token_daily_reset !== undefined) { updates.token_daily_reset = payload.token_daily_reset; }
+    if (payload.logo_url !== undefined) { updates.logo_url = payload.logo_url; }
+    if (payload.hero_image_url !== undefined) { updates.hero_image_url = payload.hero_image_url; }
+    if (payload.tagline !== undefined) { updates.tagline = payload.tagline; }
+    if (payload.description !== undefined) { updates.description = payload.description; }
+    if (payload.address !== undefined) { updates.address = payload.address; }
+    if (payload.phone !== undefined) { updates.phone = payload.phone; }
+    if (payload.whatsapp !== undefined) { updates.whatsapp = payload.whatsapp; }
+    if (payload.public_email !== undefined) { updates.public_email = payload.public_email; }
+    if (payload.social_links !== undefined) { updates.social_links = payload.social_links; }
+    if (payload.website_published !== undefined) { updates.website_published = payload.website_published; }
 
     const updated = await restaurantsRepository.update(restaurantId, updates);
     if (!updated) {
@@ -213,6 +225,37 @@ export class RestaurantsService {
 
   async assignCategoryToSection(categoryId: string, sectionId: string | null, restaurantId: string): Promise<void> {
     await restaurantsRepository.assignCategoryToSection(categoryId, sectionId, restaurantId);
+  }
+
+  // ── Theme (public website colors / font) ─────────────────────────────────────
+
+  async getTheme(restaurantId: string): Promise<RestaurantTheme> {
+    // Verify restaurant exists
+    await this.getRestaurant(restaurantId);
+
+    const theme = await restaurantsRepository.getTheme(restaurantId);
+    if (theme) return theme;
+
+    // No row yet — return the same defaults the DB would use once saved
+    return {
+      id: '',
+      restaurant_id: restaurantId,
+      primary_color: '#111827',
+      secondary_color: '#f59e0b',
+      accent_color: '#10b981',
+      background_color: '#ffffff',
+      text_color: '#111827',
+      font_family: 'Inter',
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+  }
+
+  async updateTheme(restaurantId: string, payload: UpdateThemeRequest): Promise<RestaurantTheme> {
+    // Verify restaurant exists
+    await this.getRestaurant(restaurantId);
+
+    return restaurantsRepository.upsertTheme(restaurantId, payload);
   }
 }
 
