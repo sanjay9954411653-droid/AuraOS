@@ -1,9 +1,21 @@
+import crypto from 'crypto';
 import { query } from '@/config/database';
 import { Table, TableStats } from './tables.types';
 
+function generateQrToken(): string {
+  return crypto.randomBytes(16).toString('hex'); // 32 hex chars
+}
+
+function generatePasscode(): string {
+  return String(crypto.randomInt(0, 10000)).padStart(4, '0'); // 4-digit PIN
+}
+
+const TABLE_COLS = 'id, restaurant_id, table_number, seats, is_active, qr_token, passcode, created_at, updated_at';
+
 export class TablesRepository {
   /**
-   * Create a new table
+   * Create a new table. Every table gets its own QR token + passcode
+   * automatically so it can be scanned/printed right away.
    */
   async create(
     restaurantId: string,
@@ -12,10 +24,10 @@ export class TablesRepository {
     isActive: boolean = true
   ): Promise<Table> {
     const result = await query(
-      `INSERT INTO restaurant_tables (restaurant_id, table_number, seats, is_active)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, restaurant_id, table_number, seats, is_active, created_at, updated_at`,
-      [restaurantId, tableNumber, seats, isActive]
+      `INSERT INTO restaurant_tables (restaurant_id, table_number, seats, is_active, qr_token, passcode)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING ${TABLE_COLS}`,
+      [restaurantId, tableNumber, seats, isActive, generateQrToken(), generatePasscode()]
     );
     return result.rows[0];
   }
@@ -25,8 +37,20 @@ export class TablesRepository {
    */
   async findById(tableId: string): Promise<Table | null> {
     const result = await query(
-      'SELECT id, restaurant_id, table_number, seats, is_active, created_at, updated_at FROM restaurant_tables WHERE id = $1 LIMIT 1',
+      `SELECT ${TABLE_COLS} FROM restaurant_tables WHERE id = $1 LIMIT 1`,
       [tableId]
+    );
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Find table by its public QR token (used by the customer ordering page
+   * to auto-detect which table a scanned QR belongs to).
+   */
+  async findByQrToken(qrToken: string): Promise<Table | null> {
+    const result = await query(
+      `SELECT ${TABLE_COLS} FROM restaurant_tables WHERE qr_token = $1 LIMIT 1`,
+      [qrToken]
     );
     return result.rows[0] || null;
   }
@@ -36,7 +60,7 @@ export class TablesRepository {
    */
   async findByRestaurantAndNumber(restaurantId: string, tableNumber: string): Promise<Table | null> {
     const result = await query(
-      'SELECT id, restaurant_id, table_number, seats, is_active, created_at, updated_at FROM restaurant_tables WHERE restaurant_id = $1 AND table_number = $2 LIMIT 1',
+      `SELECT ${TABLE_COLS} FROM restaurant_tables WHERE restaurant_id = $1 AND table_number = $2 LIMIT 1`,
       [restaurantId, tableNumber]
     );
     return result.rows[0] || null;
@@ -47,7 +71,7 @@ export class TablesRepository {
    */
   async findByRestaurantId(restaurantId: string, limit: number = 50, offset: number = 0): Promise<Table[]> {
     const result = await query(
-      'SELECT id, restaurant_id, table_number, seats, is_active, created_at, updated_at FROM restaurant_tables WHERE restaurant_id = $1 ORDER BY table_number ASC LIMIT $2 OFFSET $3',
+      `SELECT ${TABLE_COLS} FROM restaurant_tables WHERE restaurant_id = $1 ORDER BY table_number ASC LIMIT $2 OFFSET $3`,
       [restaurantId, limit, offset]
     );
     return result.rows;
@@ -71,6 +95,7 @@ export class TablesRepository {
       `
       SELECT
         t.id, t.restaurant_id, t.table_number, t.seats, t.is_active,
+        t.qr_token, t.passcode,
         t.created_at, t.updated_at,
         ao.id              AS active_order_id,
         ao.order_number    AS active_order_number,
@@ -104,6 +129,8 @@ export class TablesRepository {
       table_number: row.table_number,
       seats: row.seats,
       is_active: row.is_active,
+      qr_token: row.qr_token,
+      passcode: row.passcode,
       created_at: row.created_at,
       updated_at: row.updated_at,
       active_order: row.active_order_id
@@ -156,10 +183,25 @@ export class TablesRepository {
     values.push(tableId);
 
     const result = await query(
-      `UPDATE restaurant_tables SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING id, restaurant_id, table_number, seats, is_active, created_at, updated_at`,
+      `UPDATE restaurant_tables SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING ${TABLE_COLS}`,
       values
     );
 
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Regenerate a table's QR token + passcode (e.g. if a code leaks, or the
+   * owner just wants a fresh one). Old QR/passcode stop working immediately.
+   */
+  async regenerateQr(tableId: string, restaurantId: string): Promise<Table | null> {
+    const result = await query(
+      `UPDATE restaurant_tables
+       SET qr_token = $1, passcode = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3 AND restaurant_id = $4
+       RETURNING ${TABLE_COLS}`,
+      [generateQrToken(), generatePasscode(), tableId, restaurantId]
+    );
     return result.rows[0] || null;
   }
 
