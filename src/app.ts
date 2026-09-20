@@ -122,7 +122,7 @@ export function createApp(): Express {
   app.use('/api/v1/subscription-plans', plansRoutes);
   app.use('/api/v1/modifiers', modifiersRoutes);
   app.use('/api/v1/organizations', organizationsRoutes);
-    app.use('/api/v1/table-requests', tableRequestsRoutes);
+   app.use('/api/v1/table-requests', tableRequestsRoutes);
   app.use('/api/v1/integrations/zomato', zomatoRoutes);
   app.use('/api/v1/integrations/whatsapp', whatsappRoutes);
 
