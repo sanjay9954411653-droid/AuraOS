@@ -1,9 +1,11 @@
 import { query } from '@/config/database';
-import { Restaurant, RestaurantSection, RestaurantStats } from './restaurants.types';
+import { Restaurant, RestaurantSection, RestaurantStats, RestaurantTheme } from './restaurants.types';
 
 const RESTAURANT_COLS = `id, name, slug, auto_approve_online_orders, delay_threshold_minutes,
   qr_mode, features, gstin, tax_rate::float8 AS tax_rate, tax_inclusive,
   restaurant_type, qsr_enabled, token_prefix, token_daily_reset, token_counter,
+  logo_url, hero_image_url, tagline, description, address, phone, whatsapp,
+  public_email, social_links, website_published,
   created_at, updated_at`;
 
 export class RestaurantsRepository {
@@ -54,6 +56,16 @@ export class RestaurantsRepository {
       qsr_enabled: boolean;
       token_prefix: string;
       token_daily_reset: boolean;
+      logo_url: string | null;
+      hero_image_url: string | null;
+      tagline: string | null;
+      description: string | null;
+      address: string | null;
+      phone: string | null;
+      whatsapp: string | null;
+      public_email: string | null;
+      social_links: Record<string, string>;
+      website_published: boolean;
     }>,
   ): Promise<Restaurant | null> {
     const fields: string[] = [];
@@ -73,6 +85,16 @@ export class RestaurantsRepository {
     if (updates.qsr_enabled !== undefined) { fields.push(`qsr_enabled = $${paramIndex++}`); values.push(updates.qsr_enabled); }
     if (updates.token_prefix !== undefined) { fields.push(`token_prefix = $${paramIndex++}`); values.push(updates.token_prefix); }
     if (updates.token_daily_reset !== undefined) { fields.push(`token_daily_reset = $${paramIndex++}`); values.push(updates.token_daily_reset); }
+    if (updates.logo_url !== undefined) { fields.push(`logo_url = $${paramIndex++}`); values.push(updates.logo_url); }
+    if (updates.hero_image_url !== undefined) { fields.push(`hero_image_url = $${paramIndex++}`); values.push(updates.hero_image_url); }
+    if (updates.tagline !== undefined) { fields.push(`tagline = $${paramIndex++}`); values.push(updates.tagline); }
+    if (updates.description !== undefined) { fields.push(`description = $${paramIndex++}`); values.push(updates.description); }
+    if (updates.address !== undefined) { fields.push(`address = $${paramIndex++}`); values.push(updates.address); }
+    if (updates.phone !== undefined) { fields.push(`phone = $${paramIndex++}`); values.push(updates.phone); }
+    if (updates.whatsapp !== undefined) { fields.push(`whatsapp = $${paramIndex++}`); values.push(updates.whatsapp); }
+    if (updates.public_email !== undefined) { fields.push(`public_email = $${paramIndex++}`); values.push(updates.public_email); }
+    if (updates.social_links !== undefined) { fields.push(`social_links = $${paramIndex++}::jsonb`); values.push(JSON.stringify(updates.social_links)); }
+    if (updates.website_published !== undefined) { fields.push(`website_published = $${paramIndex++}`); values.push(updates.website_published); }
 
     if (fields.length === 0) return this.findById(restaurantId);
 
@@ -226,6 +248,54 @@ export class RestaurantsRepository {
        WHERE id = $2 AND restaurant_id = $3`,
       [sectionId, categoryId, restaurantId],
     );
+  }
+
+  // ── Theme (public website colors / font) ─────────────────────────────────────
+
+  async getTheme(restaurantId: string): Promise<RestaurantTheme | null> {
+    const result = await query(
+      `SELECT id, restaurant_id, primary_color, secondary_color, accent_color,
+              background_color, text_color, font_family, created_at, updated_at
+       FROM restaurant_themes WHERE restaurant_id = $1 LIMIT 1`,
+      [restaurantId],
+    );
+    return result.rows[0] || null;
+  }
+
+  async upsertTheme(
+    restaurantId: string,
+    updates: Partial<{
+      primary_color: string;
+      secondary_color: string;
+      accent_color: string;
+      background_color: string;
+      text_color: string;
+      font_family: string;
+    }>,
+  ): Promise<RestaurantTheme> {
+    const result = await query(
+      `INSERT INTO restaurant_themes (restaurant_id, primary_color, secondary_color, accent_color, background_color, text_color, font_family)
+       VALUES ($1, COALESCE($2, '#111827'), COALESCE($3, '#f59e0b'), COALESCE($4, '#10b981'), COALESCE($5, '#ffffff'), COALESCE($6, '#111827'), COALESCE($7, 'Inter'))
+       ON CONFLICT (restaurant_id) DO UPDATE SET
+         primary_color    = COALESCE($2, restaurant_themes.primary_color),
+         secondary_color  = COALESCE($3, restaurant_themes.secondary_color),
+         accent_color     = COALESCE($4, restaurant_themes.accent_color),
+         background_color = COALESCE($5, restaurant_themes.background_color),
+         text_color       = COALESCE($6, restaurant_themes.text_color),
+         font_family      = COALESCE($7, restaurant_themes.font_family),
+         updated_at       = CURRENT_TIMESTAMP
+       RETURNING id, restaurant_id, primary_color, secondary_color, accent_color, background_color, text_color, font_family, created_at, updated_at`,
+      [
+        restaurantId,
+        updates.primary_color ?? null,
+        updates.secondary_color ?? null,
+        updates.accent_color ?? null,
+        updates.background_color ?? null,
+        updates.text_color ?? null,
+        updates.font_family ?? null,
+      ],
+    );
+    return result.rows[0];
   }
 }
 
