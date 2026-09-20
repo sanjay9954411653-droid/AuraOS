@@ -105,6 +105,7 @@ const navItems: NavItem[] = [
   { name: 'Knowledge Base',   href: '/ai/knowledge',       icon: BookmarkSquareIcon,       roles: ['ADMIN'] },
   { name: 'System Health',    href: '/ai/health',          icon: HeartIcon,                roles: ['ADMIN'] },
   { name: 'Platform (Owner)', href: '/owner',              icon: GlobeAltIcon,             superAdmin: true },
+    { name: 'Platform Branding', href: '/owner/branding',    icon: SwatchIcon,               superAdmin: true },
   { name: 'Multi Outlet',     href: '/multi-outlet',      icon: BuildingStorefrontIcon,    superAdmin: true },
 ]
 
