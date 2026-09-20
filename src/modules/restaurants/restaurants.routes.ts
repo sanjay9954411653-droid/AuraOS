@@ -20,6 +20,12 @@ router.put('/me', authenticate, authorize('ADMIN'), checkSubscription, (req, res
 // Get restaurant statistics (Admin only)
 router.get('/me/stats', authenticate, authorize('ADMIN'), (req, res, next) => restaurantsController.getStats(req, res, next));
 
+// Get current restaurant's theme (colors/font for the public website) (Admin only)
+router.get('/me/theme', authenticate, authorize('ADMIN'), (req, res, next) => restaurantsController.getTheme(req, res, next));
+
+// Update current restaurant's theme (Admin only)
+router.put('/me/theme', authenticate, authorize('ADMIN'), checkSubscription, (req, res, next) => restaurantsController.updateTheme(req, res, next));
+
 // Delete restaurant (Super Admin only - dangerous operation)
 router.delete('/me', authenticate, authorize('ADMIN'), (req, res, next) => restaurantsController.delete(req, res, next));
 
