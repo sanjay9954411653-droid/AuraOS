@@ -78,6 +78,7 @@ const navItems: NavItem[] = [
   { name: 'Users',            href: '/users',              icon: UsersIcon,                roles: ['ADMIN'] },
   { name: 'Reports',          href: '/reports',            icon: ChartBarIcon,             roles: ['ADMIN'], featureKey: 'reports' },
   { name: 'QR Settings',      href: '/qr-settings',        icon: QrCodeIcon,               roles: ['ADMIN'], featureKey: 'qr_ordering', restaurantTypes: NAV_TYPE_VISIBILITY['QR Settings'] },
+    { name: 'Table QR Codes',   href: '/table-qr-codes',     icon: QrCodeIcon,               roles: ['ADMIN'], featureKey: 'qr_ordering', restaurantTypes: NAV_TYPE_VISIBILITY['QR Settings'] },
     { name: 'Branding',         href: '/branding',           icon: SwatchIcon,               roles: ['ADMIN'] },
   { name: 'Delivery Zones',   href: '/delivery-zones',     icon: MapPinIcon,               roles: ['ADMIN'] },
   { name: 'Reservations',     href: '/reservations',       icon: CalendarDaysIcon },
