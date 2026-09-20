@@ -165,6 +165,26 @@ export class TablesController {
   }
 
   /**
+   * POST /api/v1/tables/:id/regenerate-qr
+   * Regenerate a table's QR token + passcode (Admin only)
+   */
+  async regenerateQr(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const restaurantId = req.user?.restaurantId;
+      if (!restaurantId) {
+        throw new Error('User not associated with a restaurant');
+      }
+
+      const { id } = req.params;
+      const table = await tablesService.regenerateQr(id, restaurantId);
+
+      res.status(200).json(successResponse(table, { message: 'QR code and passcode regenerated' }));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /api/v1/tables/stats
    * Get table statistics (Admin only)
    */
