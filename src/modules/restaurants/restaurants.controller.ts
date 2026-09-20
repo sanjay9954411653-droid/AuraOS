@@ -5,6 +5,8 @@ import {
   UpdateRestaurantRequest,
   CreateRestaurantRequestSchema,
   UpdateRestaurantRequestSchema,
+  UpdateThemeRequest,
+  UpdateThemeRequestSchema,
 } from './restaurants.types';
 import { successResponse } from '@/shared/utils/responseHandler';
 import { AuthenticatedRequest } from '@/shared/middleware/authenticate';
@@ -224,6 +226,39 @@ export class RestaurantsController {
       const { section_id } = req.body; // null = unassign
       await restaurantsService.assignCategoryToSection(categoryId, section_id ?? null, restaurantId);
       res.status(200).json(successResponse({ message: 'Category assigned to section' }));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ── Theme (public website colors / font) ─────────────────────────────────────
+
+  /**
+   * GET /api/v1/restaurants/me/theme
+   * Get current restaurant's theme (Admin only)
+   */
+  async getTheme(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const restaurantId = req.user?.restaurantId;
+      if (!restaurantId) throw new Error('User not associated with a restaurant');
+      const theme = await restaurantsService.getTheme(restaurantId);
+      res.status(200).json(successResponse(theme));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PUT /api/v1/restaurants/me/theme
+   * Update current restaurant's theme (Admin only)
+   */
+  async updateTheme(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const restaurantId = req.user?.restaurantId;
+      if (!restaurantId) throw new Error('User not associated with a restaurant');
+      const payload = UpdateThemeRequestSchema.parse(req.body) as UpdateThemeRequest;
+      const theme = await restaurantsService.updateTheme(restaurantId, payload);
+      res.status(200).json(successResponse(theme, { message: 'Theme updated successfully' }));
     } catch (error) {
       next(error);
     }
