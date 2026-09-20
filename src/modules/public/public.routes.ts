@@ -199,7 +199,7 @@ router.post('/tables/:slug/verify-passcode', async (req: Request, res: Response,
       [payload.table_id, restaurant.id, payload.passcode],
     );
 
-    if (result.rows.length === 0) {
+        if (result.rows.length === 0) {
       res.status(401).json({ success: false, error: { message: 'Incorrect passcode' } });
       return;
     }
@@ -208,7 +208,63 @@ router.post('/tables/:slug/verify-passcode', async (req: Request, res: Response,
   } catch (err) {
     next(err);
   }
-});// ─── POST /api/v1/public/order/:slug ────────────────────────────────────────
+});
+
+// ─── POST /api/v1/public/tables/:slug/call-waiter ───────────────────────────
+// ─── POST /api/v1/public/tables/:slug/request-bill ──────────────────────────
+// Customer taps a button on the menu page. Creates a pending request and
+// pushes it to the waiter app in real time.
+
+const TableRequestSchema = z.object({
+  table_id: z.string().uuid(),
+});
+
+async function createTableRequest(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  type: 'CALL_WAITER' | 'REQUEST_BILL',
+) {
+  try {
+    const restaurant = await getRestaurantBySlug(req.params.slug);
+    if (!restaurant) throw new NotFoundError('Restaurant not found');
+
+    const payload = TableRequestSchema.parse(req.body);
+
+    const tableResult = await query(
+      `SELECT id, table_number FROM restaurant_tables
+       WHERE id = $1 AND restaurant_id = $2 AND is_active = TRUE
+       LIMIT 1`,
+      [payload.table_id, restaurant.id],
+    );
+    if (tableResult.rows.length === 0) throw new BadRequestError('Table not found');
+    const table = tableResult.rows[0];
+
+    const insertResult = await query(
+      `INSERT INTO table_requests (restaurant_id, table_id, type)
+       VALUES ($1, $2, $3)
+       RETURNING id, created_at`,
+      [restaurant.id, table.id, type],
+    );
+
+    eventBroadcaster?.broadcastTableRequestCreated({
+      request_id: insertResult.rows[0].id,
+      restaurant_id: restaurant.id,
+      table_id: table.id,
+      table_number: table.table_number,
+      type,
+    });
+
+    res.status(201).json(successResponse({ requested: true }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+router.post('/tables/:slug/call-waiter', publicOrderRateLimiter, (req, res, next) => createTableRequest(req, res, next, 'CALL_WAITER'));
+router.post('/tables/:slug/request-bill', publicOrderRateLimiter, (req, res, next) => createTableRequest(req, res, next, 'REQUEST_BILL'));
+
+// ─── POST /api/v1/public/order/:slug ────────────────────────────────────────
 // Unified order endpoint for both restaurant and mall modes.
 //
 // Restaurant mode fields: table_id (optional), table_number (optional text)
