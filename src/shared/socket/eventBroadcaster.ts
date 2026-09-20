@@ -32,6 +32,10 @@ export enum SocketEvent {
   TABLE_UPDATED = 'TABLE_UPDATED',
   TABLE_DELETED = 'TABLE_DELETED',
 
+   // Table service request events
+  TABLE_REQUEST_CREATED = 'TABLE_REQUEST_CREATED',
+  TABLE_REQUEST_RESOLVED = 'TABLE_REQUEST_RESOLVED',
+
   // Error events
   ERROR = 'ERROR',
 }
@@ -82,6 +86,14 @@ export interface TableEventPayload {
   restaurant_id: string;
   table_number: string;
   status: 'occupied' | 'freed';
+}
+
+export interface TableRequestPayload {
+  request_id: string;
+  restaurant_id: string;
+  table_id: string;
+  table_number?: string;
+  type?: 'CALL_WAITER' | 'REQUEST_BILL';
 }
 
 /**
@@ -215,6 +227,21 @@ export class EventBroadcaster {
 
   broadcastTableDeleted(restaurantId: string, tableId: string): void {
     this.io.to(`restaurant:${restaurantId}`).emit(SocketEvent.TABLE_DELETED, { table_id: tableId, restaurant_id: restaurantId });
+  }
+
+  
+  /**
+   * Broadcast a new "Call Waiter" / "Request Bill" tap to the restaurant room.
+   */
+  broadcastTableRequestCreated(payload: TableRequestPayload): void {
+    this.io.to(`restaurant:${payload.restaurant_id}`).emit(SocketEvent.TABLE_REQUEST_CREATED, payload);
+  }
+
+  /**
+   * Broadcast that a staff member resolved a request (clears it from other devices).
+   */
+  broadcastTableRequestResolved(payload: TableRequestPayload): void {
+    this.io.to(`restaurant:${payload.restaurant_id}`).emit(SocketEvent.TABLE_REQUEST_RESOLVED, payload);
   }
 
   /**
