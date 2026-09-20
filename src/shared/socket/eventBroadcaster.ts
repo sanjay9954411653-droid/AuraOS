@@ -32,7 +32,7 @@ export enum SocketEvent {
   TABLE_UPDATED = 'TABLE_UPDATED',
   TABLE_DELETED = 'TABLE_DELETED',
 
-   // Table service request events
+     // Table service request events
   TABLE_REQUEST_CREATED = 'TABLE_REQUEST_CREATED',
   TABLE_REQUEST_RESOLVED = 'TABLE_REQUEST_RESOLVED',
 
