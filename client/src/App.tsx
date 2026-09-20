@@ -22,6 +22,7 @@ import Inventory from './pages/Inventory'
 import CustomerApp from './pages/CustomerApp'
 import TokenDisplay from './pages/TokenDisplay'
 import QRSettings from './pages/QRSettings'
+import Branding from './pages/Branding'
 import NotFound from './pages/NotFound'
 import Onboarding from './pages/Onboarding'
 import ZomatoSettings from './pages/ZomatoSettings'
@@ -140,6 +141,13 @@ function App() {
                 <ProtectedRoute roles={['ADMIN']}>
                   <Layout>
                     <QRSettings />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+                              <Route path="/branding" element={
+                <ProtectedRoute roles={['ADMIN']}>
+                  <Layout>
+                    <Branding />
                   </Layout>
                 </ProtectedRoute>
               } />
