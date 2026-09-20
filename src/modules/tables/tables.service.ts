@@ -129,6 +129,23 @@ export class TablesService {
   }
 
   /**
+   * Regenerate a table's QR token + passcode
+   */
+  async regenerateQr(tableId: string, restaurantId: string): Promise<Table> {
+    // Verify table exists and belongs to restaurant
+    const existing = await this.getTable(tableId);
+    if (existing.restaurant_id !== restaurantId) {
+      throw new NotFoundError('Table not found');
+    }
+
+    const updated = await tablesRepository.regenerateQr(tableId, restaurantId);
+    if (!updated) {
+      throw new NotFoundError('Table not found');
+    }
+    return updated;
+  }
+
+  /**
    * Get table statistics
    */
   async getTableStats(restaurantId: string): Promise<TableStats> {
