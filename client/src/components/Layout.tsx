@@ -186,7 +186,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <img src="/icon-512.png" alt="AuraOS" className="w-full h-full object-cover" />
         </div>
         <div>
-          <p className="font-bold text-white text-base leading-none tracking-tight">AuraOS</p>
+                    <p className="font-bold text-white text-base leading-none tracking-tight">NF Cred OS</p>
           <p className="text-[11px] text-navy-300 mt-1 font-medium">Restaurant Platform</p>
         </div>
       </div>
@@ -397,7 +397,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className="w-7 h-7 rounded-lg overflow-hidden ring-1 ring-slate-200">
               <img src="/icon-512.png" alt="AuraOS" className="w-full h-full object-cover" />
             </div>
-            <span className="font-bold text-slate-900 text-sm tracking-tight">AuraOS</span>
+                       <span className="font-bold text-slate-900 text-sm tracking-tight">NF Cred OS</span>
           </div>
         </header>
 
