@@ -36,10 +36,47 @@ export const UpdateRestaurantRequestSchema = z.object({
     payments:        z.boolean().optional(),
     waiter_app:      z.boolean().optional(),
   }).optional(),
+  // ── Branding / public website fields ────────────────────────────────────────
+  logo_url:          z.string().max(2048).nullable().optional(),
+  hero_image_url:    z.string().max(2048).nullable().optional(),
+  tagline:           z.string().max(255).nullable().optional(),
+  description:       z.string().max(5000).nullable().optional(),
+  address:           z.string().max(1000).nullable().optional(),
+  phone:             z.string().max(20).nullable().optional(),
+  whatsapp:          z.string().max(20).nullable().optional(),
+  public_email:      z.string().max(255).nullable().optional(),
+  social_links:      z.record(z.string()).optional(),
+  website_published: z.boolean().optional(),
 });
 
 export type CreateRestaurantRequest = z.infer<typeof CreateRestaurantRequestSchema>;
 export type UpdateRestaurantRequest = z.infer<typeof UpdateRestaurantRequestSchema>;
+
+// ── Theme (colors / font used by the public website) ─────────────────────────
+
+export const UpdateThemeRequestSchema = z.object({
+  primary_color:    z.string().regex(/^#[0-9A-Fa-f]{3,8}$/).optional(),
+  secondary_color:  z.string().regex(/^#[0-9A-Fa-f]{3,8}$/).optional(),
+  accent_color:     z.string().regex(/^#[0-9A-Fa-f]{3,8}$/).optional(),
+  background_color: z.string().regex(/^#[0-9A-Fa-f]{3,8}$/).optional(),
+  text_color:       z.string().regex(/^#[0-9A-Fa-f]{3,8}$/).optional(),
+  font_family:      z.string().max(100).optional(),
+});
+
+export type UpdateThemeRequest = z.infer<typeof UpdateThemeRequestSchema>;
+
+export interface RestaurantTheme {
+  id: string;
+  restaurant_id: string;
+  primary_color: string;
+  secondary_color: string;
+  accent_color: string;
+  background_color: string;
+  text_color: string;
+  font_family: string;
+  created_at: Date;
+  updated_at: Date;
+}
 
 export interface RestaurantFeatures {
   kitchen_display: boolean;
@@ -68,6 +105,16 @@ export interface Restaurant {
   token_prefix: string;
   token_daily_reset: boolean;
   token_counter: number;
+  logo_url: string | null;
+  hero_image_url: string | null;
+  tagline: string | null;
+  description: string | null;
+  address: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  public_email: string | null;
+  social_links: Record<string, string>;
+  website_published: boolean;
   created_at: Date;
   updated_at: Date;
 }
