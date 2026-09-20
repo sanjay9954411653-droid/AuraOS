@@ -23,6 +23,7 @@ import CustomerApp from './pages/CustomerApp'
 import TokenDisplay from './pages/TokenDisplay'
 import QRSettings from './pages/QRSettings'
 import Branding from './pages/Branding'
+import PlatformBranding from './pages/PlatformBranding'
 import NotFound from './pages/NotFound'
 import Onboarding from './pages/Onboarding'
 import ZomatoSettings from './pages/ZomatoSettings'
@@ -183,6 +184,13 @@ function App() {
                 <ProtectedRoute superAdminOnly>
                   <Layout>
                     <OwnerDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+                              <Route path="/owner/branding" element={
+                <ProtectedRoute superAdminOnly>
+                  <Layout>
+                    <PlatformBranding />
                   </Layout>
                 </ProtectedRoute>
               } />
