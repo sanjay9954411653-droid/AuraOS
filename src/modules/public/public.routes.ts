@@ -151,7 +151,64 @@ router.get('/tables/:slug', async (req: Request, res: Response, next: NextFuncti
   }
 });
 
-// ─── POST /api/v1/public/order/:slug ────────────────────────────────────────
+// ─── GET /api/v1/public/tables/:slug/qr/:token ──────────────────────────────
+// Resolves a scanned table QR code to its table (auto-detects which table
+// the customer is sitting at, no manual picking needed). Passcode is NOT
+// returned here — it must be entered separately and verified below.
+
+router.get('/tables/:slug/qr/:token', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const restaurant = await getRestaurantBySlug(req.params.slug);
+    if (!restaurant) throw new NotFoundError('Restaurant not found');
+
+    const result = await query(
+      `SELECT id, table_number, seats
+       FROM restaurant_tables
+       WHERE restaurant_id = $1 AND qr_token = $2 AND is_active = TRUE
+       LIMIT 1`,
+      [restaurant.id, req.params.token],
+    );
+    if (result.rows.length === 0) throw new NotFoundError('Table not found for this QR code');
+
+    res.json(successResponse(result.rows[0]));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/v1/public/tables/:slug/verify-passcode ───────────────────────
+// Checks the PIN printed on the table matches, before the customer is let
+// into the menu/ordering screen.
+
+const VerifyPasscodeSchema = z.object({
+  table_id: z.string().uuid(),
+  passcode: z.string().min(1).max(10),
+});
+
+router.post('/tables/:slug/verify-passcode', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const restaurant = await getRestaurantBySlug(req.params.slug);
+    if (!restaurant) throw new NotFoundError('Restaurant not found');
+
+    const payload = VerifyPasscodeSchema.parse(req.body);
+
+    const result = await query(
+      `SELECT id FROM restaurant_tables
+       WHERE id = $1 AND restaurant_id = $2 AND passcode = $3 AND is_active = TRUE
+       LIMIT 1`,
+      [payload.table_id, restaurant.id, payload.passcode],
+    );
+
+    if (result.rows.length === 0) {
+      res.status(401).json({ success: false, error: { message: 'Incorrect passcode' } });
+      return;
+    }
+
+    res.json(successResponse({ valid: true }));
+  } catch (err) {
+    next(err);
+  }
+});// ─── POST /api/v1/public/order/:slug ────────────────────────────────────────
 // Unified order endpoint for both restaurant and mall modes.
 //
 // Restaurant mode fields: table_id (optional), table_number (optional text)
@@ -172,6 +229,7 @@ const GuestOrderSchema = z.object({
   // Restaurant mode
   table_id: z.string().uuid().optional().nullable(),
   table_number: z.string().max(50).optional().nullable(),
+  table_passcode: z.string().max(10).optional().nullable(),  
 
   // Mall mode
   customer_name: z.string().min(1).max(100).optional(),
@@ -349,16 +407,20 @@ router.post('/order/:slug', publicOrderRateLimiter, async (req: Request, res: Re
 
     const totalAmount = Math.max(0, itemsTotal - couponDiscount - loyaltyDiscount);
 
-    // Validate table_id belongs to this restaurant
+      // Validate table_id belongs to this restaurant, and passcode matches
     if (payload.table_id) {
       const tableCheck = await query(
-        `SELECT id FROM restaurant_tables
+        `SELECT id, passcode FROM restaurant_tables
          WHERE id = $1 AND restaurant_id = $2 AND is_active = TRUE
          LIMIT 1`,
         [payload.table_id, restaurantId],
       );
       if (tableCheck.rows.length === 0) {
         throw new BadRequestError('Table not found');
+      }
+      const tablePasscode = tableCheck.rows[0].passcode;
+      if (tablePasscode && payload.table_passcode !== tablePasscode) {
+        throw new BadRequestError('Table passcode is missing or incorrect');
       }
     }
 
