@@ -22,6 +22,7 @@ import Inventory from './pages/Inventory'
 import CustomerApp from './pages/CustomerApp'
 import TokenDisplay from './pages/TokenDisplay'
 import QRSettings from './pages/QRSettings'
+import TableQRCodes from './pages/TableQRCodes'
 import Branding from './pages/Branding'
 import PlatformBranding from './pages/PlatformBranding'
 import NotFound from './pages/NotFound'
@@ -135,6 +136,13 @@ function App() {
                 <ProtectedRoute roles={['ADMIN']}>
                   <Layout>
                     <Reports />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+                           <Route path="/table-qr-codes" element={
+                <ProtectedRoute roles={['ADMIN']}>
+                  <Layout>
+                    <TableQRCodes />
                   </Layout>
                 </ProtectedRoute>
               } />
