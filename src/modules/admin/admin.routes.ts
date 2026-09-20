@@ -285,4 +285,58 @@ router.patch('/support-tickets/:id', authenticate, superAdmin, async (req: Reque
   } catch (err) { next(err); }
 });
 
+// ── PLATFORM SETTINGS: AuraOS's own branding (logo/colors, shown across the product) ──
+
+const UpdatePlatformSettingsSchema = z.object({
+  logo_url: z.string().max(2048).nullable().optional(),
+  favicon_url: z.string().max(2048).nullable().optional(),
+  primary_color: z.string().regex(/^#[0-9A-Fa-f]{3,8}$/).optional(),
+  secondary_color: z.string().regex(/^#[0-9A-Fa-f]{3,8}$/).optional(),
+  accent_color: z.string().regex(/^#[0-9A-Fa-f]{3,8}$/).optional(),
+});
+
+// Public — the app shell reads this to theme itself (logo in sidebar, favicon, etc.)
+router.get('/platform-settings', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await query(
+      `SELECT logo_url, favicon_url, primary_color, secondary_color, accent_color, updated_at
+       FROM platform_settings WHERE id = 1 LIMIT 1`,
+    );
+    const settings = result.rows[0] || {
+      logo_url: null,
+      favicon_url: null,
+      primary_color: '#4f46e5',
+      secondary_color: '#f59e0b',
+      accent_color: '#10b981',
+    };
+    res.json(successResponse(settings));
+  } catch (err) { next(err); }
+});
+
+// Super-admin only — update AuraOS's own branding
+router.put('/platform-settings', authenticate, superAdmin, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const payload = UpdatePlatformSettingsSchema.parse(req.body);
+    const fields: string[] = [];
+    const values: any[] = [];
+    let i = 1;
+    if (payload.logo_url !== undefined) { fields.push(`logo_url = $${i++}`); values.push(payload.logo_url); }
+    if (payload.favicon_url !== undefined) { fields.push(`favicon_url = $${i++}`); values.push(payload.favicon_url); }
+    if (payload.primary_color !== undefined) { fields.push(`primary_color = $${i++}`); values.push(payload.primary_color); }
+    if (payload.secondary_color !== undefined) { fields.push(`secondary_color = $${i++}`); values.push(payload.secondary_color); }
+    if (payload.accent_color !== undefined) { fields.push(`accent_color = $${i++}`); values.push(payload.accent_color); }
+
+    if (fields.length > 0) {
+      fields.push('updated_at = CURRENT_TIMESTAMP');
+      await query(`UPDATE platform_settings SET ${fields.join(', ')} WHERE id = 1`, values);
+    }
+
+    const result = await query(
+      `SELECT logo_url, favicon_url, primary_color, secondary_color, accent_color, updated_at
+       FROM platform_settings WHERE id = 1`,
+    );
+    res.json(successResponse(result.rows[0], { message: 'Platform settings updated' }));
+  } catch (err) { next(err); }
+});
+
 export default router;
