@@ -39,32 +39,25 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 )
 // ── App ───────────────────────────────────────────────────────────────────────
 const App: React.FC = () => {
-     const { restoreSession, user } = useAuthStore()
-   const { fetchAll } = useMenuStore()
+  const { restoreSession, user, token } = useAuthStore()
+  const { fetchAll } = useMenuStore()
+  const { connect, disconnect, fetchPending } = useTableRequestsStore()
 
-   useEffect(() => {
-     restoreSession()
-   }, [restoreSession])
+  useEffect(() => {
+    restoreSession()
+  }, [restoreSession])
 
-      useEffect(() => {
-     if (user) fetchAll()
-   }, [user, fetchAll])
+  useEffect(() => {
+    if (user) fetchAll()
+  }, [user, fetchAll])
 
-   const { connect, disconnect, fetchPending } = useTableRequestsStore()
-   useEffect(() => {
-     if (user?.restaurantId && user.token) {
-       // token is read from localStorage inside the api client, but the
-       // socket connection needs it explicitly for its own handshake
-     }
-     if (user?.restaurantId) {
-       const token = localStorage.getItem('waiter_token')
-       if (token) {
-         connect(token, user.restaurantId)
-         fetchPending()
-       }
-     }
-     return () => disconnect()
-   }, [user, connect, disconnect, fetchPending])
+  // Live "Call Waiter" / "Request Bill" alerts (socket + initial fetch)
+  useEffect(() => {
+    if (!user?.restaurantId || !token) return
+    connect(token, user.restaurantId)
+    fetchPending()
+    return () => disconnect()
+  }, [user?.restaurantId, token, connect, disconnect, fetchPending])
 
   return (
     <>
