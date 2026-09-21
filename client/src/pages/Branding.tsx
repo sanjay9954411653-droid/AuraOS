@@ -3,10 +3,11 @@
  * logo, hero image, tagline/description, contact info, social links,
  * theme colors/font, and whether the public website is published.
  *
- * Note: there's no file-upload system yet, so logo/hero image are plain
- * URL fields (paste a link to an already-hosted image).
+ * Logo and cover photo can be uploaded (when Cloudinary is set up in
+ * config/imageUpload.ts) or pasted as an https link.
  */
 
+import ImageField from '../components/ImageField'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import api, { getErrorMessage } from '../api'
@@ -174,42 +175,24 @@ const Branding: React.FC = () => {
           <h2 className="text-sm font-semibold text-slate-700">Logo & Images</h2>
         </div>
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Logo URL</label>
-            <input
-              type="text"
-              value={fields.logo_url}
-              onChange={(e) => updateField('logo_url', e.target.value)}
-              placeholder="https://..."
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            />
-            {fields.logo_url && (
-              <img
-                src={fields.logo_url}
-                alt="Logo preview"
-                className="h-12 mt-2 rounded border border-slate-200 object-contain bg-slate-50 px-2"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-              />
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Hero Image URL</label>
-            <input
-              type="text"
-              value={fields.hero_image_url}
-              onChange={(e) => updateField('hero_image_url', e.target.value)}
-              placeholder="https://..."
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            />
-            {fields.hero_image_url && (
-              <img
-                src={fields.hero_image_url}
-                alt="Hero preview"
-                className="h-24 w-full mt-2 rounded border border-slate-200 object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-              />
-            )}
-          </div>
+          <ImageField
+            label="Logo"
+            value={fields.logo_url}
+            onChange={(url) => updateField('logo_url', url)}
+            shape="logo"
+            maxSize={500}
+            folder="logos"
+            help="Shown as a round badge on your customer menu. A square logo works best."
+          />
+          <ImageField
+            label="Cover photo"
+            value={fields.hero_image_url}
+            onChange={(url) => updateField('hero_image_url', url)}
+            shape="wide"
+            maxSize={1400}
+            folder="covers"
+            help="Wide photo of your restaurant or best dish. Shown at the top of your customer menu."
+          />
         </div>
       </Card>
 

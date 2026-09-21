@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../api';
 import { MenuCategory, MenuItem } from '../types/menu';
+import ImageField from './ImageField';
 
 interface ModifierGroup {
   id: string;
@@ -26,6 +27,8 @@ const MenuForm: React.FC<MenuFormProps> = ({ menuItem, onClose, onSave }) => {
   const [isVegetarian, setIsVegetarian] = useState(menuItem?.is_vegetarian ?? false);
   const [isActive, setIsActive] = useState(menuItem?.is_active ?? true);
   const [displayOrder, setDisplayOrder] = useState(menuItem?.display_order || 0);
+  const [imageUrl, setImageUrl] = useState(menuItem?.image_url || '');
+  const [isFeatured, setIsFeatured] = useState(menuItem?.is_featured ?? false);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -47,6 +50,8 @@ const MenuForm: React.FC<MenuFormProps> = ({ menuItem, onClose, onSave }) => {
       setIsVegetarian(menuItem.is_vegetarian);
       setIsActive(menuItem.is_active);
       setDisplayOrder(menuItem.display_order);
+      setImageUrl(menuItem.image_url || '');
+      setIsFeatured(menuItem.is_featured ?? false);
     } else {
       setName('');
       setDescription('');
@@ -56,6 +61,8 @@ const MenuForm: React.FC<MenuFormProps> = ({ menuItem, onClose, onSave }) => {
       setIsVegetarian(false);
       setIsActive(true);
       setDisplayOrder(0);
+      setImageUrl('');
+      setIsFeatured(false);
       setSelectedGroupIds(new Set());
     }
   }, [menuItem]);
@@ -117,6 +124,7 @@ const MenuForm: React.FC<MenuFormProps> = ({ menuItem, onClose, onSave }) => {
     if (price <= 0) newErrors.price = 'Price must be positive.';
     if (!categoryId) newErrors.categoryId = 'Category is required.';
     if (prepTime <= 0) newErrors.prepTime = 'Prep time must be at least 1 minute.';
+    if (imageUrl.trim() && !/^https:\/\//i.test(imageUrl.trim())) newErrors.imageUrl = 'Image link must start with https://';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -146,6 +154,8 @@ const MenuForm: React.FC<MenuFormProps> = ({ menuItem, onClose, onSave }) => {
       is_vegetarian: isVegetarian,
       is_active: isActive,
       display_order: displayOrder,
+      image_url: imageUrl.trim(), // '' removes the photo
+      is_featured: isFeatured,
     };
 
     setSaving(true);
@@ -239,6 +249,18 @@ const MenuForm: React.FC<MenuFormProps> = ({ menuItem, onClose, onSave }) => {
               rows={3}
             />
           </div>
+          <div>
+            <ImageField
+              label="Photo"
+              value={imageUrl}
+              onChange={setImageUrl}
+              shape="square"
+              maxSize={900}
+              folder="menu-items"
+              help="A bright, close-up photo works best. Items with photos sell more."
+            />
+            {errors.imageUrl && <p className="text-red-500 text-sm mt-1">{errors.imageUrl}</p>}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Price</label>
@@ -284,6 +306,18 @@ const MenuForm: React.FC<MenuFormProps> = ({ menuItem, onClose, onSave }) => {
                 className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
               />
               <label htmlFor="isActive" className="block text-sm font-medium text-gray-700">Active</label>
+            </div>
+            <div className="flex items-center space-x-2 md:col-span-2">
+              <input
+                type="checkbox"
+                id="isFeatured"
+                checked={isFeatured}
+                onChange={(e) => setIsFeatured(e.target.checked)}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+              />
+              <label htmlFor="isFeatured" className="block text-sm font-medium text-gray-700">
+                ⭐ Featured — show in the big "Featured" row at the top of the customer menu
+              </label>
             </div>
           </div>
           <div>

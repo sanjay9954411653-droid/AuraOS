@@ -18,6 +18,8 @@ export interface MenuItem {
   price: number
   prep_time_minutes: number
   is_vegetarian: boolean
+  image_url?: string | null
+  is_featured?: boolean
   is_active: boolean
   display_order: number
   created_at: string

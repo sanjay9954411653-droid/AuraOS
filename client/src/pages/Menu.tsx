@@ -11,6 +11,7 @@ import Loading from '../components/Loading'
 import Modal from '../components/Modal'
 import { MenuCategory, MenuItem } from '../types/menu'
 import { formatCurrency } from '../lib/utils'
+import { optimizeImageUrl } from '../lib/imageUpload'
 import {
   PlusIcon,
   PencilIcon,
@@ -18,6 +19,7 @@ import {
   MagnifyingGlassIcon,
   BookOpenIcon,
   TagIcon,
+  PhotoIcon,
 } from '@heroicons/react/24/outline'
 
 const Menu: React.FC = () => {
@@ -251,6 +253,31 @@ const Menu: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {catItems.map((item) => (
                 <Card key={item.id} padding="sm" className="group relative">
+                  {item.image_url ? (
+                    <div className="relative mb-3">
+                      <img
+                        src={optimizeImageUrl(item.image_url, 500)}
+                        alt={item.name}
+                        loading="lazy"
+                        className="w-full h-32 object-cover rounded-lg bg-gray-100"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                      {item.is_featured && (
+                        <span className="absolute top-2 left-2 text-xs font-semibold bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full shadow">
+                          ⭐ Featured
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { setEditing(item); setFormOpen(true) }}
+                      className="w-full h-16 mb-3 flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-gray-200 text-xs text-gray-400 hover:border-indigo-300 hover:text-indigo-500 transition-colors"
+                    >
+                      <PhotoIcon className="w-4 h-4" />
+                      Add photo
+                    </button>
+                  )}
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0 pr-2">
                       <h3 className="font-semibold text-gray-900 text-sm leading-tight">{item.name}</h3>
@@ -263,7 +290,7 @@ const Menu: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 mt-3">
+                  <div className="flex items-center gap-2 mt-3 mb-6">
                     {item.is_vegetarian && (
                       <span className="text-xs text-emerald-600 font-medium">🌱 Veg</span>
                     )}

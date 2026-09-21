@@ -28,7 +28,7 @@ const router = Router();
 
 async function getRestaurantBySlug(slug: string) {
   const result = await query(
-    `SELECT id, name, slug, qr_mode, qsr_enabled, token_prefix, token_daily_reset FROM restaurants WHERE slug = $1 LIMIT 1`,
+    `SELECT id, name, slug, qr_mode, qsr_enabled, token_prefix, token_daily_reset, logo_url, hero_image_url, tagline FROM restaurants WHERE slug = $1 LIMIT 1`,
     [slug],
   );
   return result.rows[0] || null;
@@ -112,6 +112,12 @@ router.get('/menu/:slug', async (req: Request, res: Response, next: NextFunction
       modifier_groups: modifiersByItem[item.id] || [],
     }));
 
+    // Brand accent colour for the customer menu (falls back to the client default)
+    const themeRow = await query(
+      `SELECT secondary_color FROM restaurant_themes WHERE restaurant_id = $1 LIMIT 1`,
+      [restaurant.id],
+    ).catch(() => ({ rows: [] as any[] }));
+
     res.json(
       successResponse({
         restaurant: {
@@ -119,6 +125,10 @@ router.get('/menu/:slug', async (req: Request, res: Response, next: NextFunction
           name: restaurant.name,
           slug: restaurant.slug,
           qr_mode: restaurant.qr_mode || 'restaurant',
+          logo_url: restaurant.logo_url || null,
+          hero_image_url: restaurant.hero_image_url || null,
+          tagline: restaurant.tagline || null,
+          accent_color: themeRow.rows[0]?.secondary_color || null,
         },
         categories: categories.filter((c) => c.is_active),
         items: itemsWithModifiers,

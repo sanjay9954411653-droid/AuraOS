@@ -107,20 +107,22 @@ export class MenuRepository {
     prepTimeMinutes: number,
     isVegetarian: boolean,
     isActive: boolean,
-    displayOrder: number
+    displayOrder: number,
+    imageUrl: string | null = null,
+    isFeatured: boolean = false
   ): Promise<MenuItem> {
     const result = await query(
-      `INSERT INTO menu_items (restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, is_active, display_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, is_active, display_order, created_at, updated_at`,
-      [restaurantId, categoryId, name, description, price, prepTimeMinutes, isVegetarian, isActive, displayOrder]
+      `INSERT INTO menu_items (restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, is_active, display_order, image_url, is_featured)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, image_url, is_featured, is_active, display_order, created_at, updated_at`,
+      [restaurantId, categoryId, name, description, price, prepTimeMinutes, isVegetarian, isActive, displayOrder, imageUrl, isFeatured]
     );
     return result.rows[0];
   }
 
   async findMenuItemById(menuItemId: string): Promise<MenuItem | null> {
     const result = await query(
-      'SELECT id, restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, is_active, display_order, created_at, updated_at FROM menu_items WHERE id = $1 LIMIT 1',
+      'SELECT id, restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, image_url, is_featured, is_active, display_order, created_at, updated_at FROM menu_items WHERE id = $1 LIMIT 1',
       [menuItemId]
     );
     return result.rows[0] || null;
@@ -128,7 +130,7 @@ export class MenuRepository {
 
   async findMenuItemsByRestaurantId(restaurantId: string): Promise<MenuItem[]> {
     const result = await query(
-      'SELECT id, restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, is_active, display_order, created_at, updated_at FROM menu_items WHERE restaurant_id = $1 ORDER BY display_order ASC, name ASC',
+      'SELECT id, restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, image_url, is_featured, is_active, display_order, created_at, updated_at FROM menu_items WHERE restaurant_id = $1 ORDER BY display_order ASC, name ASC',
       [restaurantId]
     );
     return result.rows;
@@ -136,7 +138,7 @@ export class MenuRepository {
 
   async findMenuItemsByCategoryId(categoryId: string): Promise<MenuItem[]> {
     const result = await query(
-      'SELECT id, restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, is_active, display_order, created_at, updated_at FROM menu_items WHERE category_id = $1 ORDER BY display_order ASC, name ASC',
+      'SELECT id, restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, image_url, is_featured, is_active, display_order, created_at, updated_at FROM menu_items WHERE category_id = $1 ORDER BY display_order ASC, name ASC',
       [categoryId]
     );
     return result.rows;
@@ -153,6 +155,8 @@ export class MenuRepository {
       is_vegetarian: boolean;
       is_active: boolean;
       display_order: number;
+      image_url: string | null;
+      is_featured: boolean;
     }>
   ): Promise<MenuItem | null> {
     const fields = [];
@@ -191,6 +195,14 @@ export class MenuRepository {
       fields.push(`display_order = $${paramIndex++}`);
       values.push(updates.display_order);
     }
+    if (updates.image_url !== undefined) {
+      fields.push(`image_url = $${paramIndex++}`);
+      values.push(updates.image_url);
+    }
+    if (updates.is_featured !== undefined) {
+      fields.push(`is_featured = $${paramIndex++}`);
+      values.push(updates.is_featured);
+    }
 
     if (fields.length === 0) {
       return this.findMenuItemById(menuItemId);
@@ -200,7 +212,7 @@ export class MenuRepository {
     values.push(menuItemId);
 
     const result = await query(
-      `UPDATE menu_items SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING id, restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, is_active, display_order, created_at, updated_at`,
+      `UPDATE menu_items SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING id, restaurant_id, category_id, name, description, price, prep_time_minutes, is_vegetarian, image_url, is_featured, is_active, display_order, created_at, updated_at`,
       values
     );
 

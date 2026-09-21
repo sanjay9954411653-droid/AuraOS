@@ -13,6 +13,7 @@ import { useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { MenuItem, MenuCategory } from '../types/menu'
 import { formatCurrency } from '../lib/utils'
+import { optimizeImageUrl } from '../lib/imageUpload'
 import {
   ShoppingCartIcon,
   PlusIcon,
@@ -23,6 +24,8 @@ import {
   ChevronRightIcon,
   BellAlertIcon,
   BanknotesIcon,
+  SparklesIcon,
+  ArrowUpIcon,
 } from '@heroicons/react/24/outline'
 
 // ── Dedicated public API — no auth token, no logout interceptor ──────────────
@@ -97,6 +100,16 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string; desc
 // successful tap, so a customer can't spam the waiter app.
 const REQUEST_COOLDOWN_MS = 60000
 
+// Restaurant accent colour: uses the colour set in Branding, darkened a little
+// so white text stays readable. Falls back to a warm orange.
+const DEFAULT_ACCENT = '#ea580c'
+const darkenHex = (hex: string, amount: number): string => {
+  const n = parseInt(hex.slice(1), 16)
+  const f = (v: number) => Math.max(0, Math.round(v * (1 - amount)))
+  const parts = [f((n >> 16) & 255), f((n >> 8) & 255), f(n & 255)]
+  return '#' + parts.map((v) => v.toString(16).padStart(2, '0')).join('')
+}
+
 // ── Cart persistence ─────────────────────────────────────────────────────────
 // Keep the cart in the browser so a page refresh doesn't empty it. Saved per
 // restaurant + table QR, and dropped after 6 hours so an old cart never lingers.
@@ -128,6 +141,10 @@ const CustomerApp: React.FC = () => {
 
   // Data
   const [restaurantName, setRestaurantName] = useState('Restaurant')
+  const [brand, setBrand] = useState<{ logo_url: string; hero_image_url: string; tagline: string; accent_color: string }>({
+    logo_url: '', hero_image_url: '', tagline: '', accent_color: '',
+  })
+  const [showTop, setShowTop] = useState(false)
   const [qrMode, setQrMode] = useState<QRMode>('restaurant')
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [items, setItems] = useState<MenuItem[]>([])
@@ -203,6 +220,12 @@ const CustomerApp: React.FC = () => {
       .then(([menuRes, tablesRes]) => {
         const data = menuRes.data.data
         setRestaurantName(data.restaurant.name)
+        setBrand({
+          logo_url: data.restaurant.logo_url || '',
+          hero_image_url: data.restaurant.hero_image_url || '',
+          tagline: data.restaurant.tagline || '',
+          accent_color: data.restaurant.accent_color || '',
+        })
         setQrMode(data.restaurant.qr_mode || 'restaurant')
         setCategories(data.categories || [])
         setItems(data.items || [])
@@ -294,6 +317,34 @@ const CustomerApp: React.FC = () => {
       return matchCat && matchSearch
     })
   }, [items, selectedCategory, search])
+
+  // ── Look & feel data ───────────────────────────────────────────────────────
+  const accent = useMemo(
+    () => (/^#[0-9a-fA-F]{6}$/.test(brand.accent_color) ? darkenHex(brand.accent_color, 0.12) : DEFAULT_ACCENT),
+    [brand.accent_color],
+  )
+  const accentStyle = { '--accent': accent } as React.CSSProperties
+
+  // Big photo cards at the top: only items marked Featured that have a photo
+  const featuredItems = useMemo(() => items.filter((i) => i.is_featured && i.image_url), [items])
+
+  // Menu list grouped by category, in category order
+  const sections = useMemo(() => {
+    const result = categories
+      .map((cat) => ({ id: cat.id, name: cat.name, list: filtered.filter((i) => i.category_id === cat.id) }))
+      .filter((sec) => sec.list.length > 0)
+    const known = new Set(categories.map((c) => c.id))
+    const other = filtered.filter((i) => !known.has(i.category_id))
+    if (other.length > 0) result.push({ id: 'other', name: 'More', list: other })
+    return result
+  }, [categories, filtered])
+
+  // Show the "back to top" button after scrolling down a bit
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 500)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   // ── Generate a composite cart key from item + modifier selections ───────────
   const makeCartKey = (itemId: string, mods: SelectedModifier[]): string => {
@@ -546,7 +597,7 @@ const CustomerApp: React.FC = () => {
   if (confirmation) {
     const isPaid = confirmation.payment_method !== 'CASH'
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center p-6">
+      <div style={accentStyle} className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center p-6">
         <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center">
           <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
             <CheckCircleIcon className="w-12 h-12 text-emerald-500" />
@@ -559,7 +610,7 @@ const CustomerApp: React.FC = () => {
           <div className="bg-gray-50 rounded-2xl p-5 space-y-3 mb-6 text-left">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Order #</span>
-              <span className="font-bold text-indigo-600 font-mono">{confirmation.order_number}</span>
+              <span className="font-bold text-[color:var(--accent)] font-mono">{confirmation.order_number}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Items</span>
@@ -585,7 +636,7 @@ const CustomerApp: React.FC = () => {
 
           <button
             onClick={() => { setConfirmation(null); setStep('info'); setCart([]) }}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors"
+            className="w-full py-3 bg-[var(--accent)] hover:brightness-95 text-white font-semibold rounded-xl transition-colors"
           >
             Order More
           </button>
@@ -597,9 +648,9 @@ const CustomerApp: React.FC = () => {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading || (qrToken && !tableLocked && !error)) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div style={accentStyle} className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center space-y-3">
-          <div className="w-12 h-12 rounded-full border-2 border-gray-200 border-t-indigo-600 animate-spin mx-auto" />
+          <div className="w-12 h-12 rounded-full border-2 border-gray-200 border-t-[color:var(--accent)] animate-spin mx-auto" />
           <p className="text-gray-500 text-sm">Loading menu…</p>
         </div>
       </div>
@@ -608,10 +659,10 @@ const CustomerApp: React.FC = () => {
 
   if (error && items.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div style={accentStyle} className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center">
           <p className="text-red-600 font-medium mb-4">{error}</p>
-          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-medium">
+          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-[var(--accent)] text-white rounded-xl font-medium">
             Retry
           </button>
         </div>
@@ -622,15 +673,15 @@ const CustomerApp: React.FC = () => {
   // ── STEP 1: Info collection ────────────────────────────────────────────────
   if (step === 'info') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-6">
+      <div style={accentStyle} className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6">
         <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
           {/* Header */}
-          <div className="bg-indigo-600 px-6 py-8 text-center">
+          <div className="bg-[var(--accent)] px-6 py-8 text-center">
             <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-3">
               <span className="text-3xl">{qrMode === 'restaurant' ? '🍽️' : '🛍️'}</span>
             </div>
             <h1 className="text-2xl font-bold text-white">{restaurantName}</h1>
-            <p className="text-indigo-200 text-sm mt-1">
+            <p className="text-white/80 text-sm mt-1">
               {qrMode === 'restaurant' ? 'Dine-in ordering' : 'Food court ordering'}
             </p>
           </div>
@@ -648,8 +699,8 @@ const CustomerApp: React.FC = () => {
                           onClick={() => { setTableId(t.id); setTableNumber(t.table_number) }}
                           className={`py-2.5 text-sm font-semibold rounded-xl border-2 transition-colors ${
                             tableId === t.id
-                              ? 'bg-indigo-600 text-white border-indigo-600'
-                              : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300'
+                              ? 'bg-[var(--accent)] text-white border-[color:var(--accent)]'
+                              : 'bg-white text-gray-700 border-gray-200 hover:border-[color:var(--accent)]'
                           }`}
                         >
                           {t.table_number}
@@ -710,7 +761,7 @@ const CustomerApp: React.FC = () => {
                         onClick={() => setPaymentMethod(opt.value)}
                         className={`p-3 text-left rounded-xl border-2 transition-colors ${
                           paymentMethod === opt.value
-                            ? 'border-indigo-500 bg-indigo-50'
+                            ? 'border-[color:var(--accent)] bg-gray-50'
                             : 'border-gray-200 bg-white hover:border-gray-300'
                         }`}
                       >
@@ -730,7 +781,7 @@ const CustomerApp: React.FC = () => {
 
             <button
               onClick={handleInfoNext}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2"
+              className="w-full py-4 bg-[var(--accent)] hover:brightness-95 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2"
             >
               View Menu
               <ChevronRightIcon className="w-5 h-5" />
@@ -744,14 +795,14 @@ const CustomerApp: React.FC = () => {
   // ── STEP 1.5: PIN entry ─────────────────────────────────────────────────────
   if (step === 'pin') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-6">
+      <div style={accentStyle} className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6">
         <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
-          <div className="bg-indigo-600 px-6 py-8 text-center">
+          <div className="bg-[var(--accent)] px-6 py-8 text-center">
             <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-3">
               <span className="text-3xl">🔒</span>
             </div>
             <h1 className="text-2xl font-bold text-white">Table {tableNumber}</h1>
-            <p className="text-indigo-200 text-sm mt-1">Enter the PIN printed on your table</p>
+            <p className="text-white/80 text-sm mt-1">Enter the PIN printed on your table</p>
           </div>
 
           <div className="p-6 space-y-4">
@@ -774,7 +825,7 @@ const CustomerApp: React.FC = () => {
             <button
               onClick={handleVerifyPin}
               disabled={verifyingPin}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-colors disabled:opacity-50"
+              className="w-full py-4 bg-[var(--accent)] hover:brightness-95 text-white font-bold rounded-2xl transition-colors disabled:opacity-50"
             >
               {verifyingPin ? 'Checking…' : 'Continue'}
             </button>
@@ -794,163 +845,264 @@ const CustomerApp: React.FC = () => {
   }
 
   // ── STEP 2: Menu ───────────────────────────────────────────────────────────
-  return (
-    <div className="min-h-screen bg-gray-50 pb-24">
-      {/* Header */}
-      <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-base font-bold text-gray-900">{restaurantName}</h1>
-            <p className="text-xs text-gray-400">
-              {qrMode === 'restaurant'
-                ? `Table: ${tableNumber || 'Not selected'}`
-                : customerName}
-            </p>
+  const showFeatured = selectedCategory === 'ALL' && !search.trim() && featuredItems.length > 0
+
+  const vegDot = (
+    <span className="w-4 h-4 rounded-sm border-2 border-emerald-600 flex items-center justify-center shrink-0" title="Vegetarian">
+      <span className="w-2 h-2 rounded-full bg-emerald-600" />
+    </span>
+  )
+
+  const handleAdd = (item: MenuItem) => {
+    const hasMods = itemModifierGroups[item.id] && itemModifierGroups[item.id].length > 0
+    if (hasMods) openModifierModal(item)
+    else addToCart(item)
+  }
+
+  const renderRow = (item: MenuItem) => {
+    const hasModifiers = itemModifierGroups[item.id] && itemModifierGroups[item.id].length > 0
+    return (
+      <div key={item.id} className="flex items-center gap-3 p-3">
+        {item.image_url && (
+          <img
+            src={optimizeImageUrl(item.image_url, 200)}
+            alt={item.name}
+            loading="lazy"
+            className="w-16 h-16 rounded-xl object-cover shrink-0 bg-gray-100"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {item.is_vegetarian && vegDot}
+            <h3 className="font-semibold text-gray-900 text-sm">{item.name}</h3>
+            {hasModifiers && (
+              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">Customisable</span>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setStep('info')}
-              className="text-xs text-indigo-600 hover:underline"
-            >
-              Change
-            </button>
-            <button
-              onClick={() => setCartOpen(true)}
-              className="relative p-2.5 bg-indigo-600 rounded-full"
-            >
-              <ShoppingCartIcon className="w-5 h-5 text-white" />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold">
-                  {cartCount}
+          {item.description && (
+            <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{item.description}</p>
+          )}
+          <div className="flex items-center gap-2 mt-1">
+            <span className="font-bold text-[color:var(--accent)]">{formatCurrency(item.price)}</span>
+            <span className="text-xs text-gray-400">⏱ {item.prep_time_minutes}m</span>
+          </div>
+        </div>
+        <button
+          onClick={() => handleAdd(item)}
+          aria-label={`Add ${item.name}`}
+          className="w-9 h-9 rounded-full bg-[var(--accent)] hover:brightness-95 text-white flex items-center justify-center shrink-0 shadow-sm"
+        >
+          <PlusIcon className="w-5 h-5" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={accentStyle} className="min-h-screen bg-gray-50 pb-28">
+      {/* ── Cover ─────────────────────────────────────────────────────────── */}
+      <div className="relative h-56 sm:h-64 overflow-hidden bg-[var(--accent)]">
+        {brand.hero_image_url && (
+          <img
+            src={optimizeImageUrl(brand.hero_image_url, 1200)}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/40 to-black/65" />
+
+        <div className="relative h-full max-w-2xl mx-auto px-4 flex flex-col">
+          <div className="pt-3 flex items-center justify-between">
+            <span className="bg-black/35 backdrop-blur text-white text-xs font-medium px-3 py-1.5 rounded-full">
+              {qrMode === 'restaurant' ? `Table ${tableNumber || '—'}` : customerName}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setStep('info')}
+                className="bg-black/35 backdrop-blur text-white text-xs font-medium px-3 py-1.5 rounded-full"
+              >
+                Change
+              </button>
+              <button
+                onClick={() => setCartOpen(true)}
+                aria-label="Open your order"
+                className="relative p-2 bg-white rounded-full shadow"
+              >
+                <ShoppingCartIcon className="w-5 h-5 text-[color:var(--accent)]" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 flex flex-col items-center justify-center text-center pb-7">
+            <div className="w-20 h-20 rounded-full bg-white border-4 border-white shadow-lg overflow-hidden flex items-center justify-center">
+              {brand.logo_url ? (
+                <img
+                  src={optimizeImageUrl(brand.logo_url, 200)}
+                  alt={`${restaurantName} logo`}
+                  className="w-full h-full object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              ) : (
+                <span className="text-3xl font-bold text-[color:var(--accent)]">
+                  {restaurantName.trim().charAt(0).toUpperCase() || '🍽'}
                 </span>
               )}
-            </button>
+            </div>
+            <h1 className="mt-3 text-2xl font-bold text-white drop-shadow">{restaurantName}</h1>
+            {brand.tagline && <p className="text-sm text-white/85 mt-0.5 px-4">{brand.tagline}</p>}
           </div>
         </div>
+      </div>
 
-        {/* Call Waiter / Request Bill */}
-        {qrMode === 'restaurant' && tableId && (
-          <div className="max-w-2xl mx-auto px-4 pb-2 flex gap-2">
-            <button
-              onClick={handleCallWaiter}
-              disabled={callingWaiter || waiterCooldown}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-xl border transition-colors ${
-                waiterCooldown
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                  : 'bg-white border-gray-200 text-gray-700 hover:border-indigo-300'
-              } disabled:opacity-70`}
-            >
-              <BellAlertIcon className="w-4 h-4" />
-              {waiterCooldown ? 'Waiter notified' : callingWaiter ? 'Calling…' : 'Call Waiter'}
-            </button>
-            <button
-              onClick={handleRequestBill}
-              disabled={requestingBill || billCooldown}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-xl border transition-colors ${
-                billCooldown
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                  : 'bg-white border-gray-200 text-gray-700 hover:border-indigo-300'
-              } disabled:opacity-70`}
-            >
-              <BanknotesIcon className="w-4 h-4" />
-              {billCooldown ? 'Bill requested' : requestingBill ? 'Requesting…' : 'Request Bill'}
-            </button>
-          </div>
-        )}
-        {requestError && (
-          <div className="max-w-2xl mx-auto px-4 pb-2">
-            <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5">{requestError}</p>
-          </div>
-        )}
-
-        {/* Search */}
-        <div className="max-w-2xl mx-auto px-4 pb-2">
-          <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search dishes…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            />
-          </div>
+      {/* ── Search ────────────────────────────────────────────────────────── */}
+      <div className="max-w-2xl mx-auto px-4 -mt-5 relative z-10">
+        <div className="relative">
+          <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search dishes…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-11 pr-4 py-3.5 text-sm bg-white rounded-2xl shadow-md border border-gray-100 focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
+          />
         </div>
+      </div>
 
-        {/* Category tabs */}
-        <div className="max-w-2xl mx-auto px-4 pb-2 flex gap-2 overflow-x-auto scrollbar-thin">
+      {/* ── Call Waiter / Request Bill ────────────────────────────────────── */}
+      {qrMode === 'restaurant' && tableId && (
+        <div className="max-w-2xl mx-auto px-4 mt-3 flex gap-2">
           <button
-            onClick={() => setSelectedCategory('ALL')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
-              selectedCategory === 'ALL' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'
-            }`}
+            onClick={handleCallWaiter}
+            disabled={callingWaiter || waiterCooldown}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl border transition-colors ${
+              waiterCooldown
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                : 'bg-white border-gray-200 text-gray-700 hover:border-[color:var(--accent)]'
+            } disabled:opacity-70`}
           >
-            All
+            <BellAlertIcon className="w-4 h-4" />
+            {waiterCooldown ? 'Waiter notified' : callingWaiter ? 'Calling…' : 'Call Waiter'}
           </button>
-          {categories.map((cat) => (
+          <button
+            onClick={handleRequestBill}
+            disabled={requestingBill || billCooldown}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl border transition-colors ${
+              billCooldown
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                : 'bg-white border-gray-200 text-gray-700 hover:border-[color:var(--accent)]'
+            } disabled:opacity-70`}
+          >
+            <BanknotesIcon className="w-4 h-4" />
+            {billCooldown ? 'Bill requested' : requestingBill ? 'Requesting…' : 'Request Bill'}
+          </button>
+        </div>
+      )}
+      {requestError && (
+        <div className="max-w-2xl mx-auto px-4 mt-2">
+          <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5">{requestError}</p>
+        </div>
+      )}
+
+      {/* ── Category chips (stick to the top while scrolling) ─────────────── */}
+      <div className="sticky top-0 z-20 mt-3 bg-gray-50/95 backdrop-blur border-b border-gray-200">
+        <div className="max-w-2xl mx-auto px-4 py-2.5 flex gap-2 overflow-x-auto scrollbar-thin">
+          {[{ id: 'ALL', name: 'All' }, ...categories.map((c) => ({ id: c.id, name: c.name }))].map((cat) => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
-                selectedCategory === cat.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'
+              className={`px-4 py-1.5 text-xs font-semibold rounded-full whitespace-nowrap transition-colors ${
+                selectedCategory === cat.id
+                  ? 'bg-[var(--accent)] text-white shadow-sm'
+                  : 'bg-white border border-gray-200 text-gray-600'
               }`}
             >
               {cat.name}
             </button>
           ))}
         </div>
-      </header>
+      </div>
 
-      {/* Menu items */}
-      <main className="max-w-2xl mx-auto px-4 py-4">
-        {filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">No items found</div>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((item) => {
-              const hasModifiers = itemModifierGroups[item.id] && itemModifierGroups[item.id].length > 0
-              return (
-                <div key={item.id} className="bg-white rounded-2xl border border-gray-200 p-4 flex gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {item.is_vegetarian && (
-                        <span className="w-4 h-4 rounded border-2 border-emerald-500 flex items-center justify-center shrink-0">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        </span>
-                      )}
-                      <h3 className="font-semibold text-gray-900 text-sm">{item.name}</h3>
-                      {hasModifiers && (
-                        <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">Customisable</span>
-                      )}
-                    </div>
-                    {item.description && (
-                      <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{item.description}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="font-bold text-indigo-600">{formatCurrency(item.price)}</span>
-                      <span className="text-xs text-gray-400">⏱ {item.prep_time_minutes}m</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center shrink-0">
+      {/* ── Featured ──────────────────────────────────────────────────────── */}
+      {showFeatured && (
+        <section className="pt-5">
+          <div className="max-w-2xl mx-auto px-4 flex items-center gap-2 mb-3">
+            <SparklesIcon className="w-5 h-5 text-[color:var(--accent)]" />
+            <h2 className="text-lg font-bold text-gray-900">Featured</h2>
+          </div>
+          <div className="max-w-2xl mx-auto">
+            <div className="flex gap-3 overflow-x-auto px-4 pb-2 snap-x scrollbar-thin">
+              {featuredItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="snap-start shrink-0 w-64 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+                >
+                  <div className="relative">
+                    <img
+                      src={optimizeImageUrl(item.image_url, 600)}
+                      alt={item.name}
+                      loading="lazy"
+                      className="w-full h-40 object-cover bg-gray-100"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                    />
                     <button
-                      onClick={() => {
-                        if (hasModifiers) {
-                          openModifierModal(item)
-                        } else {
-                          addToCart(item)
-                        }
-                      }}
-                      className="w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center"
+                      onClick={() => handleAdd(item)}
+                      aria-label={`Add ${item.name}`}
+                      className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-[var(--accent)] hover:brightness-95 text-white flex items-center justify-center shadow-lg"
                     >
                       <PlusIcon className="w-5 h-5" />
                     </button>
                   </div>
+                  <div className="p-3">
+                    <div className="flex items-center gap-1.5">
+                      {item.is_vegetarian && vegDot}
+                      <h3 className="font-semibold text-gray-900 text-sm truncate">{item.name}</h3>
+                    </div>
+                    <p className="font-bold text-[color:var(--accent)] mt-1">{formatCurrency(item.price)}</p>
+                  </div>
                 </div>
-              )
-            })}
+              ))}
+            </div>
           </div>
+        </section>
+      )}
+
+      {/* ── Menu list ─────────────────────────────────────────────────────── */}
+      <main className="max-w-2xl mx-auto px-4 pt-5">
+        {filtered.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">No items found</div>
+        ) : (
+          sections.map((sec) => (
+            <section key={sec.id} className="mb-6">
+              {selectedCategory === 'ALL' && (
+                <h2 className="text-lg font-bold text-gray-900 mb-2">{sec.name}</h2>
+              )}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100 overflow-hidden">
+                {sec.list.map(renderRow)}
+              </div>
+            </section>
+          ))
         )}
       </main>
+
+      {/* Back to top */}
+      {showTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+          className={`fixed right-4 z-10 w-11 h-11 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center ${
+            cartCount > 0 && !cartOpen ? 'bottom-24' : 'bottom-6'
+          }`}
+        >
+          <ArrowUpIcon className="w-5 h-5 text-[color:var(--accent)]" />
+        </button>
+      )}
 
       {/* Sticky bottom bar */}
       {cartCount > 0 && !cartOpen && (
@@ -958,9 +1110,9 @@ const CustomerApp: React.FC = () => {
           <div className="max-w-2xl mx-auto">
             <button
               onClick={() => setCartOpen(true)}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-semibold flex items-center justify-between px-6 shadow-xl"
+              className="w-full bg-[var(--accent)] hover:brightness-95 text-white py-4 rounded-2xl font-semibold flex items-center justify-between px-6 shadow-xl"
             >
-              <span className="bg-indigo-500 rounded-lg px-2 py-0.5 text-sm">{cartCount}</span>
+              <span className="bg-black/20 rounded-lg px-2 py-0.5 text-sm">{cartCount}</span>
               <span>View Order</span>
               <span>{formatCurrency(cartTotal)}</span>
             </button>
@@ -1029,7 +1181,7 @@ const CustomerApp: React.FC = () => {
                   <span className="text-xl">{PAYMENT_OPTIONS.find((p) => p.value === paymentMethod)?.icon}</span>
                   <div>
                     <p className="font-medium text-gray-900">{PAYMENT_OPTIONS.find((p) => p.value === paymentMethod)?.label}</p>
-                    <button onClick={() => { setCartOpen(false); setStep('info') }} className="text-xs text-indigo-600 hover:underline">
+                    <button onClick={() => { setCartOpen(false); setStep('info') }} className="text-xs text-[color:var(--accent)] hover:underline">
                       Change payment method
                     </button>
                   </div>
@@ -1041,7 +1193,7 @@ const CustomerApp: React.FC = () => {
               <button
                 onClick={handlePlaceOrder}
                 disabled={placing || cart.length === 0}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2"
+                className="w-full py-4 bg-[var(--accent)] hover:brightness-95 disabled:opacity-60 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2"
               >
                 {placing ? (
                   <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
@@ -1105,14 +1257,14 @@ const CustomerApp: React.FC = () => {
                           onClick={() => toggleModifierOption(group.id, opt.id, group.selection_type)}
                           className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-colors text-left ${
                             isSelected
-                              ? 'border-indigo-500 bg-indigo-50'
+                              ? 'border-[color:var(--accent)] bg-gray-50'
                               : 'border-gray-200 bg-white hover:border-gray-300'
                           }`}
                         >
                           <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
                             group.selection_type === 'single' ? 'rounded-full' : 'rounded'
                           } ${
-                            isSelected ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
+                            isSelected ? 'border-[color:var(--accent)] bg-[var(--accent)]' : 'border-gray-300'
                           }`}>
                             {isSelected && (
                               <CheckCircleIcon className="w-4 h-4 text-white" />
@@ -1141,7 +1293,7 @@ const CustomerApp: React.FC = () => {
 
               <button
                 onClick={confirmModifiers}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-colors"
+                className="w-full py-4 bg-[var(--accent)] hover:brightness-95 text-white font-bold rounded-2xl transition-colors"
               >
                 Add to Order
               </button>

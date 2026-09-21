@@ -14,6 +14,15 @@ export const UpdateMenuCategoryRequestSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
+// Image URL: https only (blocks javascript:/data: URLs). Empty string clears it.
+const imageUrlSchema = z
+  .string()
+  .trim()
+  .max(2048)
+  .refine((v) => v === '' || /^https:\/\//i.test(v), 'Image URL must start with https://')
+  .nullable()
+  .optional();
+
 export const CreateMenuItemRequestSchema = z.object({
   category_id: z.string().uuid('Category ID must be a valid UUID'),
   name: z.string().min(2, 'Menu item name must be at least 2 characters').max(255, 'Menu item name must be less than 255 characters'),
@@ -23,6 +32,8 @@ export const CreateMenuItemRequestSchema = z.object({
   is_vegetarian: z.boolean().default(false),
   is_active: z.boolean().default(true),
   display_order: z.number().int().min(0).default(0),
+  image_url: imageUrlSchema,
+  is_featured: z.boolean().default(false),
 });
 
 export const UpdateMenuItemRequestSchema = z.object({
@@ -34,6 +45,8 @@ export const UpdateMenuItemRequestSchema = z.object({
   is_vegetarian: z.boolean().optional(),
   is_active: z.boolean().optional(),
   display_order: z.number().int().min(0).optional(),
+  image_url: imageUrlSchema,
+  is_featured: z.boolean().optional(),
 });
 
 export type CreateMenuCategoryRequest = z.infer<typeof CreateMenuCategoryRequestSchema>;
@@ -61,6 +74,8 @@ export interface MenuItem {
   price: number;
   prep_time_minutes: number;
   is_vegetarian: boolean;
+  image_url?: string | null;
+  is_featured: boolean;
   is_active: boolean;
   display_order: number;
   created_at: Date;
