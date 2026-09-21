@@ -101,6 +101,9 @@ export interface OrderStatus {
   created_at: string;
   updated_at: string;
 }
+export function getMyOrders(slug: string) {
+  return req<OrderStatus[]>(`/customers/me/orders?slug=${encodeURIComponent(slug)}`, { auth: true });
+}
 export function trackOrder(slug: string, orderNumber: string) {
   return req<OrderStatus>(`/public/site/${encodeURIComponent(slug)}/order/${encodeURIComponent(orderNumber)}`);
 }
