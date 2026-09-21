@@ -23,6 +23,10 @@ function Stars({ rating }: { rating: number }) {
 export default function Reviews() {
   const [reviews, setReviews] = useState<OwnerReview[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editBody, setEditBody] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -44,6 +48,26 @@ export default function Reviews() {
       load()
     } catch (err) {
       toast.error(getErrorMessage(err))
+    }
+  }
+
+  function startEdit(r: OwnerReview) {
+    setEditingId(r.id)
+    setEditTitle(r.title || '')
+    setEditBody(r.body || '')
+  }
+
+  async function saveEdit(id: string) {
+    setSaving(true)
+    try {
+      await reviewApi.update(id, { title: editTitle, body: editBody })
+      toast.success('Review updated')
+      setEditingId(null)
+      load()
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -90,15 +114,50 @@ export default function Reviews() {
                   {r.order_number ? <span className="rounded-full bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600">Order {r.order_number}</span> : null}
                   {!r.is_published ? <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Hidden</span> : null}
                 </div>
-                {r.title ? <p className="mt-1 font-semibold text-gray-800">{r.title}</p> : null}
-                {r.body ? <p className="mt-1 text-sm text-gray-600">{r.body}</p> : null}
+                {editingId === r.id ? (
+                  <div className="mt-2 space-y-2">
+                    <input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      maxLength={120}
+                      placeholder="Title (optional)"
+                      className="form-input"
+                    />
+                    <textarea
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      maxLength={2000}
+                      rows={3}
+                      placeholder="Comment"
+                      className="form-input"
+                    />
+                    <p className="text-xs text-gray-400">
+                      You can fix wording (for example remove a phone number or a bad word). The star rating cannot be changed.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {r.title ? <p className="mt-1 font-semibold text-gray-800">{r.title}</p> : null}
+                    {r.body ? <p className="mt-1 text-sm text-gray-600">{r.body}</p> : null}
+                  </>
+                )}
                 <p className="mt-1 text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => togglePublished(r)}>
-                  {r.is_published ? 'Hide' : 'Publish'}
-                </Button>
-                <Button variant="danger" onClick={() => remove(r.id)}><TrashIcon className="h-5 w-5" /></Button>
+                {editingId === r.id ? (
+                  <>
+                    <Button onClick={() => saveEdit(r.id)} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+                    <Button variant="outline" onClick={() => setEditingId(null)} disabled={saving}>Cancel</Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" onClick={() => startEdit(r)}>Edit</Button>
+                    <Button variant="outline" onClick={() => togglePublished(r)}>
+                      {r.is_published ? 'Hide' : 'Publish'}
+                    </Button>
+                    <Button variant="danger" onClick={() => remove(r.id)}><TrashIcon className="h-5 w-5" /></Button>
+                  </>
+                )}
               </div>
             </Card>
           ))}

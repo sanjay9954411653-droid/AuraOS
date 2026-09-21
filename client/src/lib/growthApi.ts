@@ -75,6 +75,9 @@ export const reviewApi = {
   list: () => api.get('/reviews'),
   setPublished: (id: string, is_published: boolean) =>
     api.patch(`/reviews/${id}`, { is_published }),
+  // Owner can clean up the wording; the star rating can't be changed.
+  update: (id: string, data: { title?: string | null; body?: string | null }) =>
+    api.patch(`/reviews/${id}`, data),
   remove: (id: string) => api.delete(`/reviews/${id}`),
 }
 

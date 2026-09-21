@@ -28,7 +28,14 @@ import {
   ArrowUpIcon,
   Bars3Icon,
 } from '@heroicons/react/24/outline'
-import { CustomerMenuDrawer, saveCustomerOrder, type OrdersView } from '../components/CustomerMenuDrawer'
+import {
+  CustomerMenuDrawer,
+  LiveOrderBanner,
+  saveCustomerOrder,
+  useTrackedOrders,
+  type OrdersView,
+  type SavedOrderLine,
+} from '../components/CustomerMenuDrawer'
 
 // ── Dedicated public API — no auth token, no logout interceptor ──────────────
 const publicApi = axios.create({
@@ -39,6 +46,15 @@ const publicApi = axios.create({
 type QRMode = 'restaurant' | 'mall'
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'ONLINE'
 type Step = 'info' | 'pin' | 'menu' | 'cart' | 'confirm'
+type DietFilter = 'ALL' | 'VEG' | 'NONVEG'
+
+// Tap to filter the menu; tap the active one again to clear it.
+const DIET_OPTIONS: { value: 'VEG' | 'NONVEG'; label: string; dot: string }[] = [
+  { value: 'VEG', label: 'Veg', dot: 'bg-emerald-600' },
+  { value: 'NONVEG', label: 'Non-veg', dot: 'bg-red-600' },
+]
+const matchesDiet = (diet: DietFilter, isVeg: boolean) =>
+  diet === 'ALL' || (diet === 'VEG' ? isVeg : !isVeg)
 
 // ── Modifier types ───────────────────────────────────────────────────────────
 
@@ -191,6 +207,10 @@ const CustomerApp: React.FC = () => {
   const [confirmation, setConfirmation] = useState<OrderConfirmation | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [ordersView, setOrdersView] = useState<OrdersView | null>(null)
+  const tracked = useTrackedOrders(slug)
+  const [notice, setNotice] = useState('')
+  const [diet, setDiet] = useState<DietFilter>('ALL')
+  const [ratingSummary, setRatingSummary] = useState<{ count: number; average: number } | null>(null)
   const [infoError, setInfoError] = useState('')
 
   // ── Build a flat modifier options lookup from the menu items ────────────────
@@ -243,6 +263,23 @@ const CustomerApp: React.FC = () => {
       })
       .finally(() => setLoading(false))
   }, [slug])
+
+  // ── Restaurant rating (shown under the name; optional) ─────────────────────
+  useEffect(() => {
+    publicApi.get(`/public/site/${slug}/rating`)
+      .then((res) => {
+        const d = res.data?.data
+        if (d && Number(d.count) > 0) setRatingSummary({ count: Number(d.count), average: Number(d.average) })
+      })
+      .catch(() => { /* the rating badge is optional */ })
+  }, [slug])
+
+  // Hide the small notice message after a few seconds
+  useEffect(() => {
+    if (!notice) return
+    const t = setTimeout(() => setNotice(''), 6000)
+    return () => clearTimeout(t)
+  }, [notice])
 
   // ── Resolve table from a scanned per-table QR code ───────────────────────
   useEffect(() => {
@@ -318,9 +355,9 @@ const CustomerApp: React.FC = () => {
     return items.filter((item) => {
       const matchCat = selectedCategory === 'ALL' || item.category_id === selectedCategory
       const matchSearch = !search || item.name.toLowerCase().includes(search.toLowerCase())
-      return matchCat && matchSearch
+      return matchCat && matchSearch && matchesDiet(diet, item.is_vegetarian)
     })
-  }, [items, selectedCategory, search])
+  }, [items, selectedCategory, search, diet])
 
   // ── Look & feel data ───────────────────────────────────────────────────────
   const accent = useMemo(
@@ -330,7 +367,10 @@ const CustomerApp: React.FC = () => {
   const accentStyle = { '--accent': accent } as React.CSSProperties
 
   // Big photo cards at the top: only items marked Featured that have a photo
-  const featuredItems = useMemo(() => items.filter((i) => i.is_featured && i.image_url), [items])
+  const featuredItems = useMemo(
+    () => items.filter((i) => i.is_featured && i.image_url && matchesDiet(diet, i.is_vegetarian)),
+    [items, diet],
+  )
 
   // Menu list grouped by category, in category order
   const sections = useMemo(() => {
@@ -523,7 +563,14 @@ const CustomerApp: React.FC = () => {
         payment_method: data.payment_method || paymentMethod,
         table_number: qrMode === 'restaurant' ? (tableNumber || tables.find((t) => t.id === tableId)?.table_number) : undefined,
         placed_at: new Date().toISOString(),
+        items: cart.map((c) => ({
+          menu_item_id: c.id,
+          name: c.name,
+          quantity: c.quantity,
+          modifiers: c.modifiers,
+        })),
       })
+      void tracked.refresh()
 
       if (data.razorpay) {
         await openRazorpayCheckout(data)
@@ -880,6 +927,63 @@ const CustomerApp: React.FC = () => {
     else addToCart(item)
   }
 
+  // "Order again": put a past order back in the cart, using today's menu and prices.
+  const handleReorder = (lines: SavedOrderLine[]) => {
+    const menuById = new Map(items.map((i) => [i.id, i]))
+    const rebuilt: CartLine[] = []
+    let skipped = 0
+
+    for (const line of lines) {
+      const item = menuById.get(line.menu_item_id)
+      if (!item) { skipped++; continue }   // dish is no longer on the menu
+
+      // Keep only the options that still exist, at their current price.
+      const groups = itemModifierGroups[item.id] || []
+      const mods: SelectedModifier[] = []
+      for (const m of line.modifiers || []) {
+        const opt = groups.find((g) => g.id === m.group_id)?.options.find((o) => o.id === m.option_id)
+        if (opt) {
+          mods.push({
+            group_id: m.group_id,
+            group_name: m.group_name,
+            option_id: opt.id,
+            option_name: opt.name,
+            price_adjustment: opt.price_adjustment,
+          })
+        }
+      }
+
+      rebuilt.push({
+        cart_key: makeCartKey(item.id, mods),
+        id: item.id,
+        name: item.name,
+        price: getEffectivePrice(item, mods),
+        quantity: Math.max(1, Number(line.quantity) || 1),
+        is_vegetarian: item.is_vegetarian,
+        modifiers: mods,
+      })
+    }
+
+    if (rebuilt.length > 0) {
+      setCart((prev) => {
+        const next = [...prev]
+        for (const line of rebuilt) {
+          const idx = next.findIndex((c) => c.cart_key === line.cart_key)
+          if (idx >= 0) next[idx] = { ...next[idx], quantity: next[idx].quantity + line.quantity }
+          else next.push(line)
+        }
+        return next
+      })
+      setCartOpen(true)
+    }
+    setOrdersView(null)
+    setNotice(
+      skipped > 0
+        ? `${skipped} ${skipped === 1 ? 'dish is' : 'dishes are'} no longer on the menu and ${skipped === 1 ? 'was' : 'were'} left out.`
+        : '',
+    )
+  }
+
   const renderRow = (item: MenuItem) => {
     const hasModifiers = itemModifierGroups[item.id] && itemModifierGroups[item.id].length > 0
     return (
@@ -925,13 +1029,15 @@ const CustomerApp: React.FC = () => {
       <CustomerMenuDrawer
         slug={slug}
         restaurantName={restaurantName}
+        orders={tracked.rows}
         drawerOpen={drawerOpen}
         onCloseDrawer={() => setDrawerOpen(false)}
         ordersView={ordersView}
         onOrdersViewChange={setOrdersView}
+        onReorder={handleReorder}
       />
       {/* ── Cover ─────────────────────────────────────────────────────────── */}
-      <div className="relative h-56 sm:h-64 overflow-hidden bg-[var(--accent)]">
+      <div className={`relative overflow-hidden bg-[var(--accent)] ${ratingSummary ? 'h-64 sm:h-72' : 'h-56 sm:h-64'}`}>
         {brand.hero_image_url && (
           <img
             src={optimizeImageUrl(brand.hero_image_url, 1200)}
@@ -995,6 +1101,13 @@ const CustomerApp: React.FC = () => {
             </div>
             <h1 className="mt-3 text-2xl font-bold text-white drop-shadow">{restaurantName}</h1>
             {brand.tagline && <p className="text-sm text-white/85 mt-0.5 px-4">{brand.tagline}</p>}
+            {ratingSummary && (
+              <div className="mt-2 inline-flex items-center gap-1 bg-white/20 backdrop-blur text-white text-xs font-semibold px-2.5 py-1 rounded-full">
+                <span className="text-amber-300">★</span>
+                {ratingSummary.average.toFixed(1)}
+                <span className="font-normal text-white/80">({ratingSummary.count})</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1047,10 +1160,35 @@ const CustomerApp: React.FC = () => {
           <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5">{requestError}</p>
         </div>
       )}
+      {notice && (
+        <div className="max-w-2xl mx-auto px-4 mt-2">
+          <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-1.5">{notice}</p>
+        </div>
+      )}
+
+      {/* ── Live order status ─────────────────────────────────────────────── */}
+      <LiveOrderBanner orders={tracked.rows} onOpen={() => setOrdersView('ongoing')} />
 
       {/* ── Category chips (stick to the top while scrolling) ─────────────── */}
       <div className="sticky top-0 z-20 mt-3 bg-gray-50/95 backdrop-blur border-b border-gray-200">
-        <div className="max-w-2xl mx-auto px-4 py-2.5 flex gap-2 overflow-x-auto scrollbar-thin">
+        <div className="max-w-2xl mx-auto px-4 pt-2.5 flex gap-2">
+          {DIET_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setDiet(diet === opt.value ? 'ALL' : opt.value)}
+              aria-pressed={diet === opt.value}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                diet === opt.value
+                  ? 'bg-gray-900 text-white border-gray-900'
+                  : 'bg-white text-gray-600 border-gray-200'
+              }`}
+            >
+              <span className={`w-2.5 h-2.5 rounded-full ${opt.dot}`} />
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="max-w-2xl mx-auto px-4 py-2 flex gap-2 overflow-x-auto scrollbar-thin">
           {[{ id: 'ALL', name: 'All' }, ...categories.map((c) => ({ id: c.id, name: c.name }))].map((cat) => (
             <button
               key={cat.id}

@@ -192,6 +192,30 @@ router.post('/site/:slug/order/:orderNumber/review', publicOrderRateLimiter, asy
   }
 });
 
+// ─── GET /public/site/:slug/rating ──────────────────────────────────────────
+// Just the average + count of published reviews (small, cacheable) — used for
+// the "★ 4.6 (120)" badge on the ordering page.
+router.get('/site/:slug/rating', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const restaurant = await getRestaurantBySlug(req.params.slug);
+    if (!restaurant) throw new NotFoundError('Restaurant not found');
+
+    const summary = await withTenant(restaurant.id, async (q) => {
+      const r = await q(
+        `SELECT COUNT(*)::int AS count, COALESCE(AVG(rating), 0)::numeric(3,2) AS average
+         FROM reviews WHERE restaurant_id = $1 AND is_published = TRUE`,
+        [restaurant.id],
+      );
+      return r.rows[0];
+    });
+
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json(successResponse({ count: summary.count, average: Number(summary.average) }));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── GET /public/site/:slug/reviews ─────────────────────────────────────────
 // Published reviews + aggregate rating for the website's reviews section.
 router.get('/site/:slug/reviews', async (req: Request, res: Response, next: NextFunction) => {

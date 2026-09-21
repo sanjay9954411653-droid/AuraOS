@@ -38,19 +38,51 @@ ownerReviewsRouter.get('/', authenticate, async (req: AuthenticatedRequest, res:
   } catch (err) { next(err); }
 });
 
-const ModerateSchema = z.object({ is_published: z.boolean() });
+// Owners can show/hide a review and clean up its wording (title / comment).
+// The star rating itself can never be changed.
+const ModerateSchema = z
+  .object({
+    is_published: z.boolean().optional(),
+    title: z.string().trim().max(120).nullable().optional(),
+    body: z.string().trim().max(2000).nullable().optional(),
+  })
+  .refine((v) => v.is_published !== undefined || v.title !== undefined || v.body !== undefined, {
+    message: 'Nothing to update',
+  });
+
 ownerReviewsRouter.patch('/:id', authenticate, authorize('ADMIN'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { is_published } = ModerateSchema.parse(req.body);
+    const payload = ModerateSchema.parse(req.body);
+
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    if (payload.is_published !== undefined) {
+      params.push(payload.is_published);
+      sets.push(`is_published = $${params.length}`);
+    }
+    if (payload.title !== undefined) {
+      params.push(payload.title || null);
+      sets.push(`title = $${params.length}`);
+    }
+    if (payload.body !== undefined) {
+      params.push(payload.body || null);
+      sets.push(`body = $${params.length}`);
+    }
+    params.push(req.params.id);
+
     const row = await withTenant(req.user!.restaurantId, async (q) => {
       const r = await q(
-        `UPDATE reviews SET is_published = $1, updated_at = NOW() WHERE id = $2 RETURNING id, is_published`,
-        [is_published, req.params.id],
+        `UPDATE reviews SET ${sets.join(', ')}, updated_at = NOW()
+         WHERE id = $${params.length} RETURNING id, is_published, title, body`,
+        params as any[],
       );
       return r.rows[0];
     });
     if (!row) throw new NotFoundError('Review not found');
-    res.json(successResponse(row, { message: is_published ? 'Review published' : 'Review hidden' }));
+
+    const onlyVisibility = payload.title === undefined && payload.body === undefined;
+    const message = !onlyVisibility ? 'Review updated' : row.is_published ? 'Review published' : 'Review hidden';
+    res.json(successResponse(row, { message }));
   } catch (err) { next(err); }
 });
 
