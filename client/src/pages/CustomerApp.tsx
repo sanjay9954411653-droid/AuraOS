@@ -97,6 +97,28 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string; desc
 // successful tap, so a customer can't spam the waiter app.
 const REQUEST_COOLDOWN_MS = 60000
 
+// ── Cart persistence ─────────────────────────────────────────────────────────
+// Keep the cart in the browser so a page refresh doesn't empty it. Saved per
+// restaurant + table QR, and dropped after 6 hours so an old cart never lingers.
+const CART_TTL_MS = 6 * 60 * 60 * 1000
+const cartStorageKey = (slug: string, qrToken: string) =>
+  `auraos_cart:${slug}:${qrToken || 'none'}`
+
+function loadSavedCart(key: string): CartLine[] {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!parsed || !Array.isArray(parsed.cart) || Date.now() - parsed.savedAt > CART_TTL_MS) {
+      localStorage.removeItem(key)
+      return []
+    }
+    return parsed.cart as CartLine[]
+  } catch {
+    return []
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CustomerApp: React.FC = () => {
@@ -137,7 +159,7 @@ const CustomerApp: React.FC = () => {
   // Menu
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL')
   const [search, setSearch] = useState('')
-  const [cart, setCart] = useState<CartLine[]>([])
+  const [cart, setCart] = useState<CartLine[]>(() => loadSavedCart(cartStorageKey(slug, qrToken)))
 
   // Modifier selection modal
   const [modifierItem, setModifierItem] = useState<MenuItem | null>(null)
@@ -161,6 +183,17 @@ const CustomerApp: React.FC = () => {
     return map
   }, [items])
 
+  // ── Save the cart whenever it changes (empty cart clears the saved copy) ───
+  useEffect(() => {
+    const key = cartStorageKey(slug, qrToken)
+    try {
+      if (cart.length === 0) localStorage.removeItem(key)
+      else localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), cart }))
+    } catch {
+      // Storage unavailable (e.g. private mode) — cart just won't survive a refresh.
+    }
+  }, [cart, slug, qrToken])
+
   // ── Load menu + tables ─────────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
@@ -173,6 +206,9 @@ const CustomerApp: React.FC = () => {
         setQrMode(data.restaurant.qr_mode || 'restaurant')
         setCategories(data.categories || [])
         setItems(data.items || [])
+        // Remove any restored cart lines whose dish is no longer on the menu
+        const menuIds = new Set((data.items || []).map((i: any) => i.id))
+        setCart((prev) => prev.filter((c) => menuIds.has(c.id)))
         setTables(tablesRes.data.data || [])
       })
       .catch((err) => {
