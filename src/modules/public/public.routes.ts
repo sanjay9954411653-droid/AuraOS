@@ -14,6 +14,7 @@ import { ordersRepository } from '@/modules/orders/orders.repository';
 import { restaurantsRepository } from '@/modules/restaurants/restaurants.repository';
 import { menuRepository } from '@/modules/menu/menu.repository';
 import { successResponse } from '@/shared/utils/responseHandler';
+import { generateOrderNumber } from '@/shared/utils/orderNumber';
 import { NotFoundError, BadRequestError } from '@/shared/errors/AppError';
 import { eventBroadcaster } from '@/shared/socket/eventBroadcaster';
 import { publicOrderRateLimiter } from '@/shared/middleware/rateLimiter';
@@ -490,10 +491,7 @@ router.post('/order/:slug', publicOrderRateLimiter, async (req: Request, res: Re
       }
     }
 
-    const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-    const suffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    const prefix = qrMode === 'mall' ? 'MALL' : 'QR';
-    const orderNumber = `${prefix}-${restaurantId.slice(0, 8)}-${timestamp}-${suffix}`;
+    const orderNumber = await generateOrderNumber(restaurantId);
 
     // ── QSR token generation ────────────────────────────────────────────
     let tokenNumber: string | null = null;

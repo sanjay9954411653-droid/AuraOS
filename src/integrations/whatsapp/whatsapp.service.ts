@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import { generateOrderNumber } from '@/shared/utils/orderNumber';
 import { ordersRepository } from '@/modules/orders/orders.repository';
 import { menuRepository } from '@/modules/menu/menu.repository';
 import { query } from '@/config/database';
@@ -218,9 +218,7 @@ export class WhatsAppService {
 
     const totalAmount = parsedItems.reduce((s, i) => s + i.unit_price * i.quantity, 0);
 
-    const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-    const suffix = crypto.randomBytes(3).toString('hex');
-    const orderNumber = `WA-${restaurantId.slice(0, 8)}-${timestamp}-${suffix}`;
+    const orderNumber = await generateOrderNumber(restaurantId);
 
     const notes = `WhatsApp: ${customerName} (${phoneNumber})`;
 

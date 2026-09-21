@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import { generateOrderNumber } from '@/shared/utils/orderNumber';
 import { ordersRepository } from './orders.repository';
 import { tablesRepository } from '@/modules/tables/tables.repository';
 import { menuRepository } from '@/modules/menu/menu.repository';
@@ -36,12 +36,6 @@ export class OrdersService {
     return (typeScore[orderType] ?? 0) + (sourceScore[orderSource] ?? 0);
   }
 
-  private generateOrderNumber(restaurantId: string): string {
-    const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-    const suffix = crypto.randomBytes(3).toString('hex');
-    return `ORD-${restaurantId.slice(0, 8)}-${timestamp}-${suffix}`;
-  }
-
   async createOrder(restaurantId: string, createdBy: string | null, payload: CreateOrderRequest): Promise<{ order: Order; items: OrderItem[] }> {
     const { table_id, order_type, order_source, special_instructions, items } = payload;
 
@@ -65,7 +59,7 @@ export class OrdersService {
 
     const totalAmount = orderItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
     const priorityScore = this.computePriorityScore(order_type, order_source);
-    const orderNumber = this.generateOrderNumber(restaurantId);
+    const orderNumber = await generateOrderNumber(restaurantId);
 
     const staffSources = ['WAITER', 'RECEPTION'];
     const initialStatus = staffSources.includes(order_source) ? 'ACCEPTED' : 'CREATED';
