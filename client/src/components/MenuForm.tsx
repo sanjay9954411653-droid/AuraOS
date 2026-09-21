@@ -21,7 +21,7 @@ interface MenuFormProps {
 const MenuForm: React.FC<MenuFormProps> = ({ menuItem, onClose, onSave }) => {
   const [name, setName] = useState(menuItem?.name || '');
   const [description, setDescription] = useState(menuItem?.description || '');
-  const [price, setPrice] = useState(menuItem?.price || 0);
+  const [price, setPrice] = useState(Number(menuItem?.price) || 0);
   const [categoryId, setCategoryId] = useState(menuItem?.category_id || '');
   const [prepTime, setPrepTime] = useState(menuItem?.prep_time_minutes || 15);
   const [isVegetarian, setIsVegetarian] = useState(menuItem?.is_vegetarian ?? false);
@@ -44,7 +44,7 @@ const MenuForm: React.FC<MenuFormProps> = ({ menuItem, onClose, onSave }) => {
     if (menuItem) {
       setName(menuItem.name);
       setDescription(menuItem.description || '');
-      setPrice(menuItem.price);
+      setPrice(Number(menuItem.price));
       setCategoryId(menuItem.category_id);
       setPrepTime(menuItem.prep_time_minutes);
       setIsVegetarian(menuItem.is_vegetarian);
@@ -149,11 +149,11 @@ const MenuForm: React.FC<MenuFormProps> = ({ menuItem, onClose, onSave }) => {
       category_id: categoryId,
       name,
       description,
-      price,
-      prep_time_minutes: prepTime,
+      price: Number(price),
+      prep_time_minutes: Number(prepTime),
       is_vegetarian: isVegetarian,
       is_active: isActive,
-      display_order: displayOrder,
+      display_order: Number(displayOrder),
       image_url: imageUrl.trim(), // '' removes the photo
       is_featured: isFeatured,
     };
