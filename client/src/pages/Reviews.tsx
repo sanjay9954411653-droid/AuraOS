@@ -87,6 +87,7 @@ export default function Reviews() {
                 <div className="flex items-center gap-2">
                   <Stars rating={r.rating} />
                   <span className="text-sm font-medium text-gray-900">{r.customer_name || 'Anonymous'}</span>
+                  {r.order_number ? <span className="rounded-full bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600">Order {r.order_number}</span> : null}
                   {!r.is_published ? <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Hidden</span> : null}
                 </div>
                 {r.title ? <p className="mt-1 font-semibold text-gray-800">{r.title}</p> : null}

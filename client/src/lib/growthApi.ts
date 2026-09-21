@@ -68,6 +68,7 @@ export interface OwnerReview {
   is_published: boolean
   created_at: string
   customer_name: string | null
+  order_number?: string | null
 }
 
 export const reviewApi = {

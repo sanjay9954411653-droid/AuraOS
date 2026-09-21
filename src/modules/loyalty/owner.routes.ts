@@ -25,8 +25,11 @@ ownerReviewsRouter.get('/', authenticate, async (req: AuthenticatedRequest, res:
   try {
     const rows = await withTenant(req.user!.restaurantId, async (q) => {
       const r = await q(
-        `SELECT rv.id, rv.rating, rv.title, rv.body, rv.is_published, rv.created_at, c.name AS customer_name
-         FROM reviews rv LEFT JOIN customers c ON c.id = rv.customer_id
+        `SELECT rv.id, rv.rating, rv.title, rv.body, rv.is_published, rv.created_at,
+                c.name AS customer_name, o.order_number
+         FROM reviews rv
+         LEFT JOIN customers c ON c.id = rv.customer_id
+         LEFT JOIN orders o ON o.id = rv.order_id
          ORDER BY rv.created_at DESC LIMIT 200`,
       );
       return r.rows;

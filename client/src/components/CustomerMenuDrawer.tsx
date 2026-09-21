@@ -5,7 +5,8 @@
  *  - Discover Restaurant (coming soon)
  *  - Place Order       → closes the drawer, back to the menu
  *  - Ongoing Order     → live status of orders that are not finished yet
- *  - Order History     → every order placed from this device
+ *  - Order History     → every order placed from this device, with a star
+ *                        rating for finished orders
  *
  * Orders are remembered in the browser (localStorage) per restaurant, and their
  * live status comes from the existing public endpoint
@@ -59,6 +60,27 @@ export function saveCustomerOrder(slug: string, order: SavedCustomerOrder): void
   }
 }
 
+// ── Ratings given from this device (order number → stars; 0 = rated elsewhere) ──
+const ratingsKey = (slug: string) => `auraos_ratings:${slug}`
+
+function loadRatings(slug: string): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(ratingsKey(slug))
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveRating(slug: string, orderNumber: string, stars: number): void {
+  try {
+    localStorage.setItem(ratingsKey(slug), JSON.stringify({ ...loadRatings(slug), [orderNumber]: stars }))
+  } catch {
+    // Storage unavailable — the customer may just see the Rate button again.
+  }
+}
+
 // ── Status helpers ───────────────────────────────────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
   CREATED: 'Order Placed',
@@ -101,6 +123,50 @@ function OrdersPanel({
   onClose: () => void
 }) {
   const [rows, setRows] = useState<OrderRow[] | null>(null)
+
+  // Rating state
+  const [ratings, setRatings] = useState<Record<string, number>>(() => loadRatings(slug))
+  const [rateFor, setRateFor] = useState<string | null>(null) // order number being rated
+  const [stars, setStars] = useState(0)
+  const [comment, setComment] = useState('')
+  const [sending, setSending] = useState(false)
+  const [rateError, setRateError] = useState('')
+
+  const startRating = (orderNumber: string) => {
+    setRateFor(orderNumber)
+    setStars(0)
+    setComment('')
+    setRateError('')
+  }
+
+  const submitRating = async (orderNumber: string) => {
+    if (stars < 1) {
+      setRateError('Tap a star to rate your order')
+      return
+    }
+    setSending(true)
+    setRateError('')
+    try {
+      await publicApi.post(`/public/site/${slug}/order/${encodeURIComponent(orderNumber)}/review`, {
+        rating: stars,
+        ...(comment.trim() ? { comment: comment.trim() } : {}),
+      })
+      saveRating(slug, orderNumber, stars)
+      setRatings(loadRatings(slug))
+      setRateFor(null)
+    } catch (err: any) {
+      if (err.response?.status === 409) {
+        // Already rated (for example from another phone) — just stop asking.
+        saveRating(slug, orderNumber, 0)
+        setRatings(loadRatings(slug))
+        setRateFor(null)
+      } else {
+        setRateError(err.response?.data?.error?.message || 'Could not send your rating — please try again')
+      }
+    } finally {
+      setSending(false)
+    }
+  }
 
   // Load saved orders, look up each one's live status, and refresh every 15s.
   useEffect(() => {
@@ -192,6 +258,71 @@ function OrdersPanel({
                   </span>
                   <span className="font-bold text-[color:var(--accent)]">{formatCurrency(withGst(o.total_amount))}</span>
                 </div>
+
+                {o.status === 'COMPLETED' && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    {ratings[o.order_number] !== undefined ? (
+                      <p className="text-sm text-gray-500">
+                        {ratings[o.order_number] > 0 && (
+                          <span className="text-amber-500 mr-1.5">
+                            {'★'.repeat(ratings[o.order_number])}
+                            <span className="text-gray-300">{'★'.repeat(5 - ratings[o.order_number])}</span>
+                          </span>
+                        )}
+                        Thanks for your rating!
+                      </p>
+                    ) : rateFor === o.order_number ? (
+                      <div className="space-y-3">
+                        <p className="text-sm font-semibold text-gray-800">How was your order?</p>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              onClick={() => { setStars(n); setRateError('') }}
+                              aria-label={`${n} star${n > 1 ? 's' : ''}`}
+                              className={`text-3xl leading-none ${n <= stars ? 'text-amber-400' : 'text-gray-300'}`}
+                            >
+                              ★
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={comment}
+                          onChange={(e) => setComment(e.target.value)}
+                          maxLength={500}
+                          rows={2}
+                          placeholder="Tell us more (optional)"
+                          className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
+                        />
+                        {rateError && <p className="text-xs text-red-600">{rateError}</p>}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => submitRating(o.order_number)}
+                            disabled={sending}
+                            className="flex-1 py-2 bg-[var(--accent)] text-white text-sm font-semibold rounded-full disabled:opacity-50"
+                          >
+                            {sending ? 'Sending…' : 'Submit rating'}
+                          </button>
+                          <button
+                            onClick={() => setRateFor(null)}
+                            disabled={sending}
+                            className="px-4 py-2 text-sm text-gray-500"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startRating(o.order_number)}
+                        className="text-sm font-semibold text-[color:var(--accent)]"
+                      >
+                        ★ Rate this order
+                      </button>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

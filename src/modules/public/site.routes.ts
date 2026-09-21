@@ -11,9 +11,11 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
-import { query } from '@/config/database';
+import { z } from 'zod';
+import { query, withTenant } from '@/config/database';
 import { successResponse } from '@/shared/utils/responseHandler';
-import { NotFoundError } from '@/shared/errors/AppError';
+import { NotFoundError, BadRequestError, ConflictError } from '@/shared/errors/AppError';
+import { publicOrderRateLimiter } from '@/shared/middleware/rateLimiter';
 
 const router = Router();
 
@@ -140,6 +142,51 @@ router.get('/site/:slug/order/:orderNumber', async (req: Request, res: Response,
     );
     if (result.rows.length === 0) throw new NotFoundError('Order not found');
     res.json(successResponse(result.rows[0]));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /public/site/:slug/order/:orderNumber/review ──────────────────────
+// A customer rates a finished order (1–5 stars + optional comment). No login:
+// knowing the order number is the proof. Only COMPLETED orders can be rated,
+// and each order can be rated once. The owner can hide it from Reviews.
+const OrderReviewSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().trim().max(500).optional(),
+});
+
+router.post('/site/:slug/order/:orderNumber/review', publicOrderRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const restaurant = await getRestaurantBySlug(req.params.slug);
+    if (!restaurant) throw new NotFoundError('Restaurant not found');
+    const body = OrderReviewSchema.parse(req.body);
+
+    const created = await withTenant(restaurant.id, async (q) => {
+      const orderRes = await q(
+        `SELECT id, status FROM orders WHERE restaurant_id = $1 AND order_number = $2 LIMIT 1`,
+        [restaurant.id, req.params.orderNumber],
+      );
+      if (orderRes.rows.length === 0) throw new NotFoundError('Order not found');
+      const order = orderRes.rows[0];
+      if (order.status !== 'COMPLETED') {
+        throw new BadRequestError('You can rate an order once it is completed');
+      }
+
+      const inserted = await q(
+        `INSERT INTO reviews (restaurant_id, order_id, rating, body)
+         SELECT $1::uuid, $2::uuid, $3::smallint, $4::text
+         WHERE NOT EXISTS (
+           SELECT 1 FROM reviews WHERE restaurant_id = $1::uuid AND order_id = $2::uuid
+         )
+         RETURNING id, rating, created_at`,
+        [restaurant.id, order.id, body.rating, body.comment || null],
+      );
+      if (inserted.rows.length === 0) throw new ConflictError('This order has already been rated');
+      return inserted.rows[0];
+    });
+
+    res.status(201).json(successResponse(created, { message: 'Thanks for your rating' }));
   } catch (err) {
     next(err);
   }
