@@ -9,6 +9,8 @@ import OrderPage    from './pages/OrderPage'
 import MyOrdersPage from './pages/MyOrdersPage'
 import BottomNav    from './components/BottomNav'
 import OfflineBanner from './components/OfflineBanner'
+import TableRequestsBanner from './components/TableRequestsBanner'
+import { useTableRequestsStore } from './store/useTableRequestsStore'
 
 // ── Protected wrapper ─────────────────────────────────────────────────────────
 const Protected: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -30,11 +32,11 @@ const Protected: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="min-h-screen pb-20">
     <OfflineBanner />
+    <TableRequestsBanner />
     {children}
     <BottomNav />
   </div>
 )
-
 // ── App ───────────────────────────────────────────────────────────────────────
 const App: React.FC = () => {
      const { restoreSession, user } = useAuthStore()
@@ -44,9 +46,25 @@ const App: React.FC = () => {
      restoreSession()
    }, [restoreSession])
 
-   useEffect(() => {
+      useEffect(() => {
      if (user) fetchAll()
    }, [user, fetchAll])
+
+   const { connect, disconnect, fetchPending } = useTableRequestsStore()
+   useEffect(() => {
+     if (user?.restaurantId && user.token) {
+       // token is read from localStorage inside the api client, but the
+       // socket connection needs it explicitly for its own handshake
+     }
+     if (user?.restaurantId) {
+       const token = localStorage.getItem('waiter_token')
+       if (token) {
+         connect(token, user.restaurantId)
+         fetchPending()
+       }
+     }
+     return () => disconnect()
+   }, [user, connect, disconnect, fetchPending])
 
   return (
     <>
