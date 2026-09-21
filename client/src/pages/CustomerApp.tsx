@@ -26,7 +26,9 @@ import {
   BanknotesIcon,
   SparklesIcon,
   ArrowUpIcon,
+  Bars3Icon,
 } from '@heroicons/react/24/outline'
+import { CustomerMenuDrawer, saveCustomerOrder, type OrdersView } from '../components/CustomerMenuDrawer'
 
 // ── Dedicated public API — no auth token, no logout interceptor ──────────────
 const publicApi = axios.create({
@@ -187,6 +189,8 @@ const CustomerApp: React.FC = () => {
   const [cartOpen, setCartOpen] = useState(false)
   const [placing, setPlacing] = useState(false)
   const [confirmation, setConfirmation] = useState<OrderConfirmation | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [ordersView, setOrdersView] = useState<OrdersView | null>(null)
   const [infoError, setInfoError] = useState('')
 
   // ── Build a flat modifier options lookup from the menu items ────────────────
@@ -511,6 +515,16 @@ const CustomerApp: React.FC = () => {
       const res = await publicApi.post(`/public/order/${slug}`, body)
       const data = res.data.data
 
+      // Remember the order on this device for Ongoing Order / Order History.
+      saveCustomerOrder(slug, {
+        order_number: data.order_number,
+        total_amount: Number(data.total_amount),
+        items_count: Number(data.items_count) || cart.reduce((n, c) => n + c.quantity, 0),
+        payment_method: data.payment_method || paymentMethod,
+        table_number: qrMode === 'restaurant' ? (tableNumber || tables.find((t) => t.id === tableId)?.table_number) : undefined,
+        placed_at: new Date().toISOString(),
+      })
+
       if (data.razorpay) {
         await openRazorpayCheckout(data)
         return
@@ -633,6 +647,13 @@ const CustomerApp: React.FC = () => {
               💵 Please pay <strong>{formatCurrency(Number(confirmation.total_amount) * 1.18)}</strong> at the counter when collecting your order.
             </div>
           )}
+
+          <button
+            onClick={() => { setConfirmation(null); setOrdersView('ongoing') }}
+            className="w-full py-3 mb-3 border-2 border-[color:var(--accent)] text-[color:var(--accent)] font-semibold rounded-xl"
+          >
+            Track this order
+          </button>
 
           <button
             onClick={() => { setConfirmation(null); setStep('info'); setCart([]) }}
@@ -901,6 +922,14 @@ const CustomerApp: React.FC = () => {
 
   return (
     <div style={accentStyle} className="min-h-screen bg-gray-50 pb-28">
+      <CustomerMenuDrawer
+        slug={slug}
+        restaurantName={restaurantName}
+        drawerOpen={drawerOpen}
+        onCloseDrawer={() => setDrawerOpen(false)}
+        ordersView={ordersView}
+        onOrdersViewChange={setOrdersView}
+      />
       {/* ── Cover ─────────────────────────────────────────────────────────── */}
       <div className="relative h-56 sm:h-64 overflow-hidden bg-[var(--accent)]">
         {brand.hero_image_url && (
@@ -915,9 +944,18 @@ const CustomerApp: React.FC = () => {
 
         <div className="relative h-full max-w-2xl mx-auto px-4 flex flex-col">
           <div className="pt-3 flex items-center justify-between">
-            <span className="bg-black/35 backdrop-blur text-white text-xs font-medium px-3 py-1.5 rounded-full">
-              {qrMode === 'restaurant' ? `Table ${tableNumber || '—'}` : customerName}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setDrawerOpen(true)}
+                aria-label="Open menu"
+                className="p-2 bg-black/35 backdrop-blur text-white rounded-full"
+              >
+                <Bars3Icon className="w-5 h-5" />
+              </button>
+              <span className="bg-black/35 backdrop-blur text-white text-xs font-medium px-3 py-1.5 rounded-full">
+                {qrMode === 'restaurant' ? `Table ${tableNumber || '—'}` : customerName}
+              </span>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setStep('info')}
