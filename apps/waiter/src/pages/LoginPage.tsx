@@ -5,8 +5,8 @@ import { useAuthStore } from '../store/useAuthStore'
 import { getErrorMessage } from '../api/client'
 
 const LoginPage: React.FC = () => {
-  const [email, setEmail]       = useState('waiter@demo-kitchen.local')
-  const [password, setPassword] = useState('demo123')
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
   const { login, isLoading }    = useAuthStore()
   const navigate                = useNavigate()
 
@@ -37,6 +37,7 @@ const LoginPage: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input
               type="email"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="input"
@@ -48,6 +49,7 @@ const LoginPage: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
             <input
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="input"
@@ -65,11 +67,6 @@ const LoginPage: React.FC = () => {
               <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
             ) : 'Sign In'}
           </button>
-
-          <div className="bg-gray-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-400 mb-1">Demo credentials</p>
-            <p className="text-xs font-mono text-gray-600">waiter@demo-kitchen.local / demo123</p>
-          </div>
         </form>
       </div>
     </div>
