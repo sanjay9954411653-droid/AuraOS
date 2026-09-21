@@ -30,7 +30,7 @@ export default function CheckoutPage() {
 
   // Delivery zone quote (by pincode).
   const [pincode, setPincode] = useState('');
-  const [quote, setQuote] = useState<import('@/lib/client').DeliveryQuote | null>(null);
+  const [quote, setQuote] = useState<any>(null);
   const [quoteBusy, setQuoteBusy] = useState(false);
 
   // Coupon
@@ -99,7 +99,7 @@ export default function CheckoutPage() {
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
 
-  async function submitOrder() {
+async function submitOrder() {
     setBusy(true); setError(null);
     try {
       const payload: PlaceOrderPayload = {
@@ -117,21 +117,22 @@ export default function CheckoutPage() {
       };
       const result = await placeOrder(slug, payload);
 
-      // Online payment → open Razorpay, verify, then track. If the gateway is
-      // not configured, the order has no razorpay payload and we proceed as a
-      // pending order (owner can collect/confirm).
       if (payment === 'ONLINE' && result.razorpay) {
         try {
           await payWithRazorpay(result, { name: slug, customerName: name, customerPhone: phone });
         } catch (e) {
-          // Payment cancelled/failed — order exists but unpaid. Send to tracking
-          // with a note rather than losing the order.
           setError(`Payment not completed: ${(e as Error).message}. Your order is saved as pending.`);
         }
       }
 
+      // 1. Cache the order database ID locally for tracking persistence
+      localStorage.setItem('last_guest_order_id', result.id);
+
+      // 2. Clear out local checkout basket
       clear();
-      router.push(`/track/${encodeURIComponent(result.order_number)}`);
+
+      // 3. Route cleanly to your custom tracking directory view!
+      window.location.href = `/track/${result.id}`;
     } catch (e) { setError((e as Error).message); setBusy(false); }
   }
 
@@ -170,7 +171,6 @@ export default function CheckoutPage() {
           <span style={{ color: 'var(--brand-accent)' }}>₹{grandTotal.toFixed(0)}</span>
         </div>
 
-        {/* Coupon */}
         <div className="flex gap-2 pt-2">
           <input
             value={couponCode}
@@ -204,7 +204,8 @@ export default function CheckoutPage() {
           />
           <button onClick={sendCode} disabled={busy || phone.length < 8}
             className="w-full rounded-full px-6 py-3 font-semibold text-white disabled:opacity-50"
-            style={{ backgroundColor: 'var(--brand-primary)' }}>
+            style={{ backgroundColor: 'var(--brand-primary)' }}
+          >
             {busy ? 'Sending…' : 'Send OTP'}
           </button>
         </div>
@@ -216,76 +217,77 @@ export default function CheckoutPage() {
           <label className="block text-sm font-medium">Enter 6-digit code sent to {phone}</label>
           <input
             value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            placeholder="••••••" inputMode="numeric"
-            className="w-full rounded-lg border px-3 py-2 tracking-widest"
+            placeholder="000000" inputMode="numeric"
+            className="w-full rounded-lg border px-3 py-2"
           />
-          <button onClick={confirmCode} disabled={busy || code.length !== 6}
+          <button onClick={confirmCode} disabled={busy || code.length < 6}
             className="w-full rounded-full px-6 py-3 font-semibold text-white disabled:opacity-50"
-            style={{ backgroundColor: 'var(--brand-primary)' }}>
-            {busy ? 'Verifying…' : 'Verify & Continue'}
+            style={{ backgroundColor: 'var(--brand-primary)' }}
+          >
+            {busy ? 'Verifying…' : 'Verify OTP'}
           </button>
-          <button onClick={() => setStep('login')} className="w-full text-sm underline">Change number</button>
         </div>
       ) : null}
 
       {step === 'details' ? (
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium">Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2" />
+            <label className="block text-sm font-medium">Your Name</label>
+            <input
+              value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="John Doe"
+              className="mt-1 w-full rounded-lg border px-3 py-2"
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium">Delivery pincode</label>
+            <label className="block text-sm font-medium">Pincode (for Delivery)</label>
             <div className="mt-1 flex gap-2">
-              <input value={pincode} onChange={(e) => { setPincode(e.target.value.replace(/\D/g, '').slice(0, 6)); setQuote(null); }}
-                inputMode="numeric" placeholder="e.g. 560034" className="w-full rounded-lg border px-3 py-2" />
+              <input
+                value={pincode} onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="700001" inputMode="numeric"
+                className="flex-1 rounded-lg border px-3 py-2"
+              />
               <button onClick={checkPincode} disabled={quoteBusy || pincode.length < 4}
-                className="whitespace-nowrap rounded-lg border px-4 text-sm font-medium disabled:opacity-50">
+                className="rounded-lg bg-gray-100 px-4 py-2 font-medium hover:bg-gray-200"
+              >
                 {quoteBusy ? '…' : 'Check'}
               </button>
             </div>
             {quote ? (
-              quote.deliverable ? (
-                <p className="mt-2 text-sm text-green-700">
-                  Delivers to {quote.zone_name} · Fee ₹{(quote.fee ?? 0).toFixed(0)}
-                  {quote.eta_minutes ? ` · ~${quote.eta_minutes} min` : ''}
-                  {quote.min_order ? ` · Min order ₹${quote.min_order.toFixed(0)}` : ''}
-                </p>
-              ) : (
-                <p className="mt-2 text-sm text-red-700">Sorry, we don’t deliver to this pincode.</p>
-              )
+              <p className={`mt-1 text-xs ${quote.deliverable ? 'text-emerald-700' : 'text-red-600'}`}>
+                {quote.message}
+              </p>
             ) : null}
           </div>
           <div>
-            <label className="block text-sm font-medium">Notes (optional)</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border px-3 py-2" />
+            <label className="block text-sm font-medium">Special Notes</label>
+            <textarea
+              value={notes} onChange={(e) => setNotes(e.target.value)}
+              placeholder="Extra spicy, no onions, etc."
+              className="mt-1 w-full rounded-lg border px-3 py-2"
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium">Payment</label>
-            <div className="mt-2 flex gap-3">
-              {(['CASH', 'ONLINE'] as const).map((m) => (
-                <button key={m} onClick={() => setPayment(m)}
-                  className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium"
-                  style={payment === m ? { borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary)', color: '#fff' } : undefined}>
-                  {m === 'CASH' ? 'Cash / COD' : 'Pay Online'}
-                </button>
-              ))}
+            <label className="block text-sm font-medium">Payment Method</label>
+            <div className="mt-2 grid grid-cols-2 gap-4">
+              <button type="button" onClick={() => setPayment('CASH')}
+                className={`rounded-lg border p-3 font-medium transition ${payment === 'CASH' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'hover:bg-gray-50'}`}
+              >
+                Cash / Pay Later
+              </button>
+              <button type="button" onClick={() => setPayment('ONLINE')}
+                className={`rounded-lg border p-3 font-medium transition ${payment === 'ONLINE' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'hover:bg-gray-50'}`}
+              >
+                Online Payment
+              </button>
             </div>
           </div>
-          {deliveryFee > 0 ? (
-            <div className="flex justify-between border-t pt-3 text-sm">
-              <span>Items ₹{total.toFixed(0)} + Delivery ₹{deliveryFee.toFixed(0)}</span>
-              <span className="font-bold">₹{grandTotal.toFixed(0)}</span>
-            </div>
-          ) : null}
-          <button onClick={submitOrder} disabled={busy || (!!quote && !quote.deliverable)}
-            className="w-full rounded-full px-6 py-3 font-semibold text-white disabled:opacity-50"
-            style={{ backgroundColor: 'var(--brand-primary)' }}>
-            {busy ? 'Placing order…' : `Place Order · ₹${grandTotal.toFixed(0)}`}
+          <button onClick={submitOrder} disabled={busy}
+            className="mt-6 w-full rounded-full px-6 py-3 font-semibold text-white"
+            style={{ backgroundColor: 'var(--brand-primary)' }}
+          >
+            {busy ? 'Placing Order…' : 'Place Order'}
           </button>
-          {payment === 'ONLINE' ? (
-            <p className="text-center text-xs opacity-60">Online payment (Razorpay) completes on the next step.</p>
-          ) : null}
         </div>
       ) : null}
     </main>
