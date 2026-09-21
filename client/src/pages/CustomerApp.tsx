@@ -21,6 +21,8 @@ import {
   CheckCircleIcon,
   XMarkIcon,
   ChevronRightIcon,
+  BellAlertIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/outline'
 
 // ── Dedicated public API — no auth token, no logout interceptor ──────────────
@@ -91,6 +93,10 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string; desc
   { value: 'CASH',   label: 'Pay at Counter',icon: '💵', desc: 'Pay when you collect' },
 ]
 
+// How long the Call Waiter / Request Bill buttons stay disabled after a
+// successful tap, so a customer can't spam the waiter app.
+const REQUEST_COOLDOWN_MS = 60000
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CustomerApp: React.FC = () => {
@@ -115,6 +121,13 @@ const CustomerApp: React.FC = () => {
   const [pinInput, setPinInput] = useState('')
   const [pinError, setPinError] = useState('')
   const [verifyingPin, setVerifyingPin] = useState(false)
+
+  // Call Waiter / Request Bill
+  const [callingWaiter, setCallingWaiter] = useState(false)
+  const [requestingBill, setRequestingBill] = useState(false)
+  const [waiterCooldown, setWaiterCooldown] = useState(false)
+  const [billCooldown, setBillCooldown] = useState(false)
+  const [requestError, setRequestError] = useState('')
 
   // Customer info (mall mode)
   const [customerName, setCustomerName] = useState('')
@@ -203,6 +216,37 @@ const CustomerApp: React.FC = () => {
       setPinError(err.response?.data?.error?.message || 'Incorrect PIN — please try again')
     } finally {
       setVerifyingPin(false)
+    }
+  }
+
+  // ── Call Waiter / Request Bill ────────────────────────────────────────────
+  const handleCallWaiter = async () => {
+    if (!tableId || callingWaiter || waiterCooldown) return
+    setCallingWaiter(true)
+    setRequestError('')
+    try {
+      await publicApi.post(`/public/tables/${slug}/call-waiter`, { table_id: tableId })
+      setWaiterCooldown(true)
+      setTimeout(() => setWaiterCooldown(false), REQUEST_COOLDOWN_MS)
+    } catch (err: any) {
+      setRequestError(err.response?.data?.error?.message || 'Could not reach the waiter — please try again')
+    } finally {
+      setCallingWaiter(false)
+    }
+  }
+
+  const handleRequestBill = async () => {
+    if (!tableId || requestingBill || billCooldown) return
+    setRequestingBill(true)
+    setRequestError('')
+    try {
+      await publicApi.post(`/public/tables/${slug}/request-bill`, { table_id: tableId })
+      setBillCooldown(true)
+      setTimeout(() => setBillCooldown(false), REQUEST_COOLDOWN_MS)
+    } catch (err: any) {
+      setRequestError(err.response?.data?.error?.message || 'Could not request the bill — please try again')
+    } finally {
+      setRequestingBill(false)
     }
   }
 
@@ -747,6 +791,41 @@ const CustomerApp: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Call Waiter / Request Bill */}
+        {qrMode === 'restaurant' && tableId && (
+          <div className="max-w-2xl mx-auto px-4 pb-2 flex gap-2">
+            <button
+              onClick={handleCallWaiter}
+              disabled={callingWaiter || waiterCooldown}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-xl border transition-colors ${
+                waiterCooldown
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                  : 'bg-white border-gray-200 text-gray-700 hover:border-indigo-300'
+              } disabled:opacity-70`}
+            >
+              <BellAlertIcon className="w-4 h-4" />
+              {waiterCooldown ? 'Waiter notified' : callingWaiter ? 'Calling…' : 'Call Waiter'}
+            </button>
+            <button
+              onClick={handleRequestBill}
+              disabled={requestingBill || billCooldown}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-xl border transition-colors ${
+                billCooldown
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                  : 'bg-white border-gray-200 text-gray-700 hover:border-indigo-300'
+              } disabled:opacity-70`}
+            >
+              <BanknotesIcon className="w-4 h-4" />
+              {billCooldown ? 'Bill requested' : requestingBill ? 'Requesting…' : 'Request Bill'}
+            </button>
+          </div>
+        )}
+        {requestError && (
+          <div className="max-w-2xl mx-auto px-4 pb-2">
+            <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5">{requestError}</p>
+          </div>
+        )}
 
         {/* Search */}
         <div className="max-w-2xl mx-auto px-4 pb-2">
