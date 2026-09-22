@@ -6,6 +6,16 @@ import { Order, OrderStatus } from '../types/order'
 import { ClockIcon, CheckCircleIcon, WifiIcon, ExclamationCircleIcon, PrinterIcon } from '@heroicons/react/24/outline'
 import { formatElapsed } from '../lib/utils'
 import { printKOT } from '../components/PrintKOT'
+import {
+  connectUSB,
+  connectBluetooth,
+  silentReconnectUSB,
+  silentReconnectBluetooth,
+  getConnectedPrinter,
+  printKOTRaw,
+  isPrinterSupported,
+  type PrinterKind,
+} from '../lib/thermalPrinter'
 
 type SortBy = 'time' | 'priority'
 
@@ -35,11 +45,17 @@ const CARD_COLORS: Record<string, string> = {
   ACCEPTED:  'border-blue-400 bg-blue-950',
 }
 
+const AUTO_PRINT_KEY = 'kitchen_auto_print'
+
 const Kitchen: React.FC = () => {
   const [orders, setOrders] = useState<OrderWithItems[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [sortBy, setSortBy] = useState<SortBy>('time')
+  const [printer, setPrinter] = useState<PrinterKind | null>(null)
+  const [showPrinterMenu, setShowPrinterMenu] = useState(false)
+  const [autoPrint, setAutoPrint] = useState(() => localStorage.getItem(AUTO_PRINT_KEY) !== 'off')
+  const seenOrderIds = useRef<Set<string> | null>(null) // null = first load not done yet
   // Track delayed order IDs so we can highlight them on the card
   const [delayedOrderIds, setDelayedOrderIds] = useState<Set<string>>(new Set())
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -48,18 +64,61 @@ const Kitchen: React.FC = () => {
   const fetchOrders = useCallback(async () => {
     try {
       const res = await api.get('/orders', { params: { limit: 100 } })
-         const all: OrderWithItems[] = res.data.data?.items || []
+      const all: OrderWithItems[] = res.data.data?.items || []
       // Kitchen only shows pre-service stages. READY orders leave the kitchen display
       // immediately — waiter handles payment from the Orders / Tables screen.
-      setOrders(all.filter((o) => ['CREATED', 'ACCEPTED', 'PREPARING'].includes(o.status)))
+      const active = all.filter((o) => ['CREATED', 'ACCEPTED', 'PREPARING'].includes(o.status))
+      setOrders(active)
+
+      // Auto-print any order that's newly arrived since the last fetch.
+      // Skipped on the very first load, so reopening/refreshing this page
+      // never reprints orders that were already here.
+      if (seenOrderIds.current !== null && autoPrint && getConnectedPrinter()) {
+        const isNew = (o: OrderWithItems) => o.status === 'CREATED' && !seenOrderIds.current!.has(o.id)
+        for (const order of active.filter(isNew)) {
+          const items = order.order_items || order.items || []
+          printKOTRaw(order, items as any).catch(() =>
+            toast.error(`Couldn't auto-print order ${order.order_number} — printer may have disconnected`, { duration: 6000 }),
+          )
+        }
+      }
+      seenOrderIds.current = new Set(active.map((o) => o.id))
     } catch (err) {
       toast.error('Failed to load orders')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [autoPrint])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
+
+  // On load, try to silently reconnect to whichever printer was last used —
+  // no prompt shown. If it can't (browser restarted, permission not
+  // rememberable for this printer type), the header shows "Connect Printer".
+  useEffect(() => {
+    (async () => {
+      if (await silentReconnectUSB()) { setPrinter('usb'); return }
+      if (await silentReconnectBluetooth()) setPrinter('bluetooth')
+    })()
+  }, [])
+
+  const handleConnect = async (kind: PrinterKind) => {
+    setShowPrinterMenu(false)
+    try {
+      if (kind === 'usb') await connectUSB()
+      else await connectBluetooth()
+      setPrinter(kind)
+      toast.success(`${kind === 'usb' ? 'USB' : 'Bluetooth'} printer connected`)
+    } catch (err: any) {
+      if (err?.name !== 'NotFoundError') toast.error(err?.message || 'Could not connect to printer')
+    }
+  }
+
+  const toggleAutoPrint = () => {
+    const next = !autoPrint
+    setAutoPrint(next)
+    localStorage.setItem(AUTO_PRINT_KEY, next ? 'on' : 'off')
+  }
 
   // Tick every second for elapsed timers — forces re-render for live timers
   useEffect(() => {
@@ -212,6 +271,51 @@ const Kitchen: React.FC = () => {
             ))}
           </div>
 
+          {/* Printer */}
+          <div className="relative">
+            <button
+              onClick={() => (printer ? toggleAutoPrint() : setShowPrinterMenu((v) => !v))}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                printer
+                  ? autoPrint ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-400'
+                  : 'bg-amber-600 text-white'
+              }`}
+              title={printer ? 'Tap to turn auto-print on/off' : 'Connect a kitchen printer'}
+            >
+              <PrinterIcon className="w-4 h-4" />
+              {printer
+                ? autoPrint ? 'Auto-print ON' : 'Auto-print OFF'
+                : 'Connect Printer'}
+            </button>
+
+            {showPrinterMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden z-10">
+                {isPrinterSupported().usb && (
+                  <button
+                    onClick={() => handleConnect('usb')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700"
+                  >
+                    Connect via USB
+                  </button>
+                )}
+                {isPrinterSupported().bluetooth && (
+                  <button
+                    onClick={() => handleConnect('bluetooth')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700"
+                  >
+                    Connect via Bluetooth
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowPrinterMenu(false)}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-700 border-t border-gray-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={fetchOrders}
             className="px-3 py-1.5 text-xs font-medium bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
@@ -220,6 +324,12 @@ const Kitchen: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {!printer && (
+        <div className="bg-amber-900/40 text-amber-200 text-xs text-center py-1.5 px-4 shrink-0">
+          No kitchen printer connected — new orders won't print automatically. Tap "Connect Printer" above.
+        </div>
+      )}
 
       {/* Orders grid */}
       <div className="flex-1 overflow-auto p-4">
