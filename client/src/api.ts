@@ -1,4 +1,9 @@
 // API Base Configuration and Authentication
+//
+// The access token only lasts 15 minutes. On a 401 (expired token), this
+// client uses the longer-lived refresh token to get a new one and quietly
+// retries the request, instead of logging the owner out just for leaving
+// the tab open for a bit. Only a truly invalid session logs out.
 import axios, { AxiosError } from 'axios'
 
 const api = axios.create({
@@ -19,8 +24,35 @@ export const setAuthToken = (token: string | null) => {
   }
 }
 
+export const setRefreshToken = (refreshToken: string | null) => {
+  if (refreshToken) localStorage.setItem('refreshToken', refreshToken)
+  else localStorage.removeItem('refreshToken')
+}
+
+export const getRefreshToken = (): string | null => localStorage.getItem('refreshToken')
+
 export const setLogoutHandler = (handler: () => void) => {
   logoutHandler = handler
+}
+
+// Only one refresh happens at a time; other requests that 401 while it's in
+// flight wait for the same result instead of each starting their own.
+let refreshing: Promise<string | null> | null = null
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken()
+  if (!refreshToken) return null
+  try {
+    const baseURL = import.meta.env.VITE_API_URL || '/api/v1'
+    const res = await axios.post(`${baseURL}/auth/refresh`, { refreshToken })
+    const { token, refreshToken: nextRefreshToken } = res.data.data
+    setAuthToken(token)
+    setRefreshToken(nextRefreshToken)
+    localStorage.setItem('token', token)
+    return token
+  } catch {
+    return null
+  }
 }
 
 // Request interceptor
@@ -44,7 +76,14 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as any
 
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !originalRequest._retriedAfterRefresh) {
+      originalRequest._retriedAfterRefresh = true
+      refreshing ??= refreshAccessToken().finally(() => { refreshing = null })
+      const newToken = await refreshing
+      if (newToken) {
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return api(originalRequest)
+      }
       console.warn('[API] Unauthorized - logging out')
       logoutHandler?.()
       return Promise.reject(error)

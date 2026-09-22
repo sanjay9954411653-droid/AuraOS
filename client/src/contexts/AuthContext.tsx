@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import api, { setAuthToken, setLogoutHandler } from '../api'
+import api, { setAuthToken, setLogoutHandler, setRefreshToken, getRefreshToken } from '../api'
 
 interface User {
   id: string
@@ -55,10 +55,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const storedToken = localStorage.getItem('token')
     setLogoutHandler(logout)
 
+    // A saved access token may already be expired (they last 15 minutes) —
+    // that's expected, not a failure: the api client's 401 handler will use
+    // the refresh token to get a fresh one before /auth/me is retried.
     if (storedToken) {
       setToken(storedToken)
       setAuthToken(storedToken)
-      // Verify token and get user info
+      fetchUserProfile()
+    } else if (getRefreshToken()) {
       fetchUserProfile()
     } else {
       setIsLoading(false)
@@ -88,11 +92,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string) => {
     try {
       const response = await api.post('/auth/login', { email, password })
-      const { token: newToken } = response.data.data
+      const { token: newToken, refreshToken: newRefreshToken } = response.data.data
 
       setToken(newToken)
       localStorage.setItem('token', newToken)
       setAuthToken(newToken)
+      setRefreshToken(newRefreshToken)
 
       // Fetch full profile (includes is_super_admin flag) rather than using
       // the partial user object from the login response.
@@ -103,12 +108,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const logout = () => {
+    const refreshToken = getRefreshToken()
+    if (refreshToken) {
+      // Best effort — revoke this session's refresh token server-side.
+      api.post('/auth/logout', { refreshToken }).catch(() => {})
+    }
     setUser(null)
     setToken(null)
     setCurrentRestaurantName(null)
     localStorage.removeItem('token')
     localStorage.removeItem('restaurantName')
     setAuthToken(null)
+    setRefreshToken(null)
   }
 
   const switchRestaurant = async (restaurantId: string, restaurantName: string) => {
