@@ -7,6 +7,7 @@ import {
 import {
   TableCellsIcon as TableCellsSolid,
   ClipboardDocumentListIcon as ClipboardSolid,
+  UserCircleIcon as UserCircleSolid,
 } from '@heroicons/react/24/solid'
 import { useOrderStore } from '../store/useOrderStore'
 
@@ -28,6 +29,12 @@ const BottomNav: React.FC = () => {
       icon: ClipboardDocumentListIcon,
       activeIcon: ClipboardSolid,
       badge: queue.length > 0 ? queue.length : undefined,
+    },
+    {
+      label: 'Profile',
+      path: '/profile',
+      icon: UserCircleIcon,
+      activeIcon: UserCircleSolid,
     },
   ]
 

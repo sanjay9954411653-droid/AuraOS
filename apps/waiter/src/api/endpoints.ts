@@ -10,10 +10,16 @@ import type { Order, Table, TableWithStatus, MenuItem, MenuCategory, CartLine, O
 
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post<{ success: boolean; data: { token: string; user: any } }>('/auth/login', { email, password }),
+    api.post<{ success: boolean; data: { token: string; refreshToken: string; user: any } }>('/auth/login', { email, password }),
 
   me: () =>
     api.get<{ success: boolean; data: any }>('/auth/me'),
+
+  refresh: (refreshToken: string) =>
+    api.post<{ success: boolean; data: { token: string; refreshToken: string } }>('/auth/refresh', { refreshToken }),
+
+  logout: (refreshToken: string) =>
+    api.post('/auth/logout', { refreshToken }),
 }
 
 // ── Tables ───────────────────────────────────────────────────────────────────

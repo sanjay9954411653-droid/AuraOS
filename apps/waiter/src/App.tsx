@@ -7,6 +7,7 @@ import LoginPage    from './pages/LoginPage'
 import TablesPage   from './pages/TablesPage'
 import OrderPage    from './pages/OrderPage'
 import MyOrdersPage from './pages/MyOrdersPage'
+import ProfilePage  from './pages/ProfilePage'
 import BottomNav    from './components/BottomNav'
 import OfflineBanner from './components/OfflineBanner'
 import TableRequestsBanner from './components/TableRequestsBanner'
@@ -73,6 +74,12 @@ const App: React.FC = () => {
         <Route path="/orders" element={
           <Protected>
             <AppLayout><MyOrdersPage /></AppLayout>
+          </Protected>
+        } />
+
+        <Route path="/profile" element={
+          <Protected>
+            <AppLayout><ProfilePage /></AppLayout>
           </Protected>
         } />
 
