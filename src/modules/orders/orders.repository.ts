@@ -317,9 +317,11 @@ export class OrdersRepository {
             'order_id', oi.order_id,
             'restaurant_id', oi.restaurant_id,
             'menu_item_id', oi.menu_item_id,
+            'menu_item_name', mi.name,
             'quantity', oi.quantity,
             'unit_price', oi.unit_price,
-            'special_instructions', oi.special_instructions
+            'special_instructions', oi.special_instructions,
+            'status', oi.status
           )
         ) FILTER (WHERE oi.id IS NOT NULL),
         '[]'
@@ -332,6 +334,9 @@ export class OrdersRepository {
 
     LEFT JOIN order_items oi
       ON oi.order_id = o.id
+
+    LEFT JOIN menu_items mi
+      ON mi.id = oi.menu_item_id
 
     WHERE o.restaurant_id = $1
 
@@ -419,14 +424,16 @@ export class OrdersRepository {
           json_agg(
             json_build_object(
               'id', oi.id, 'order_id', oi.order_id, 'restaurant_id', oi.restaurant_id,
-              'menu_item_id', oi.menu_item_id, 'quantity', oi.quantity,
-              'unit_price', oi.unit_price, 'special_instructions', oi.special_instructions
+              'menu_item_id', oi.menu_item_id, 'menu_item_name', mi.name, 'quantity', oi.quantity,
+              'unit_price', oi.unit_price, 'special_instructions', oi.special_instructions,
+              'status', oi.status
             )
           ) FILTER (WHERE oi.id IS NOT NULL), '[]'
         ) AS order_items
       FROM orders o
       LEFT JOIN restaurant_tables rt ON o.table_id = rt.id
       LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
       WHERE ${conditions.join(' AND ')}
       GROUP BY o.id, rt.id
       ORDER BY ${sortCol} ${dir}
