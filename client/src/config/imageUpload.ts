@@ -10,5 +10,5 @@
  * Leave both empty and the dashboard still works: owners can paste an
  * https image link instead of uploading a file.
  */
-export const CLOUDINARY_CLOUD_NAME = 'c-2faf8aff7203d6b22e4aeb9a31febc'
+export const CLOUDINARY_CLOUD_NAME = 'u5ptnnrh'
 export const CLOUDINARY_UPLOAD_PRESET = 'qdez2wvt'
