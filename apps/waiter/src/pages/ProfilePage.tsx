@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
+import { enablePushNotifications, disablePushNotifications, getPushStatus, getPushSupport, PushStatus } from '../lib/push'
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Admin',
@@ -12,6 +13,27 @@ const ProfilePage: React.FC = () => {
   const { user, logout } = useAuthStore()
   const [confirming, setConfirming] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [pushStatus, setPushStatus] = useState<PushStatus>('default')
+  const [pushBusy, setPushBusy] = useState(false)
+
+  useEffect(() => {
+    setPushStatus(getPushStatus())
+  }, [])
+
+  const handleTogglePush = async () => {
+    setPushBusy(true)
+    try {
+      if (pushStatus === 'granted') {
+        await disablePushNotifications()
+        setPushStatus('default')
+      } else {
+        const ok = await enablePushNotifications()
+        setPushStatus(ok ? 'granted' : getPushStatus())
+      }
+    } finally {
+      setPushBusy(false)
+    }
+  }
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -38,6 +60,32 @@ const ProfilePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {getPushSupport() && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900 text-sm">Call Waiter alerts</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {pushStatus === 'denied'
+                  ? 'Blocked in browser settings — enable notifications for this site to turn it back on.'
+                  : 'Ring this device even when the app is in the background or the screen is locked.'}
+              </p>
+            </div>
+            <button
+              onClick={handleTogglePush}
+              disabled={pushBusy || pushStatus === 'denied'}
+              className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-xl transition-colors disabled:opacity-50 ${
+                pushStatus === 'granted'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
+              }`}
+            >
+              {pushBusy ? '…' : pushStatus === 'granted' ? 'On' : 'Turn on'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <p className="text-xs text-gray-400 px-1">
         You'll stay signed in on this device between shifts. Log out only if this device is shared or you're switching accounts.
