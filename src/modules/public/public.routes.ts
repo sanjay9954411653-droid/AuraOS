@@ -20,7 +20,7 @@ import { eventBroadcaster } from '@/shared/socket/eventBroadcaster';
 import { publicOrderRateLimiter } from '@/shared/middleware/rateLimiter';
 import { env } from '@/config/env';
 import { createRazorpayOrder } from '@/modules/payments/gateways/razorpay.gateway';
-import { modifierRepository } from '@/modules/modifiers/modifier.repository';
+import { modifierRepository } from '@/modules/modifiers/modifier.repository'; import { pushService } from '@/modules/push/push.service';
 import { z } from 'zod';
 
 const router = Router();
@@ -265,6 +265,18 @@ async function createTableRequest(
       table_number: table.table_number,
       type,
     });
+
+        // Fire-and-forget: also push an OS-level notification to every staff
+    // device that's enabled it, so it rings even if the Waiter app isn't
+    // the active tab / screen is locked. Never blocks the customer's request.
+    pushService
+      .sendToRestaurant(restaurant.id, {
+        title: type === 'CALL_WAITER' ? '🔔 Waiter needed' : '🧾 Bill requested',
+        body: `Table ${table.table_number} ${type === 'CALL_WAITER' ? 'needs a waiter' : 'wants the bill'}`,
+        tag: `table-request-${table.id}`,
+        data: { requestId: insertResult.rows[0].id, type, tableNumber: table.table_number },
+      })
+      .catch((err) => console.error('Push notify failed:', err?.message || err));
 
     res.status(201).json(successResponse({ requested: true }));
   } catch (err) {
