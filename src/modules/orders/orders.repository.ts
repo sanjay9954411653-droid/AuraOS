@@ -442,7 +442,6 @@ export class OrdersRepository {
               'unit_price', oi.unit_price, 'special_instructions', oi.special_instructions,
               'status', oi.status, 'kot_printed_at', oi.kot_printed_at
             )
-            )
           ) FILTER (WHERE oi.id IS NOT NULL), '[]'
         ) AS order_items
       FROM orders o
