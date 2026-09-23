@@ -148,6 +148,17 @@ export class OrdersService {
 
     return ordersRepository.addItemsToOrder(orderId, restaurantId, orderItems);
   }
+  
+  /**
+   * Mark a set of items as sent to the kitchen printer.
+   */
+  async markKotPrinted(orderId: string, restaurantId: string, itemIds: string[]): Promise<void> {
+    const order = await ordersRepository.findById(orderId);
+    if (!order || order.restaurant_id !== restaurantId) {
+      throw new NotFoundError('Order not found');
+    }
+    await ordersRepository.markItemsKotPrinted(orderId, restaurantId, itemIds);
+  }
 
   private groupOrderItems(items: CreateOrderRequest['items']): CreateOrderRequest['items'] {
     const grouped = new Map<string, CreateOrderRequest['items'][number]>; 
