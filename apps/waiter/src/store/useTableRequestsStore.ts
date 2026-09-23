@@ -23,6 +23,7 @@ export interface TableRequest {
 interface TableRequestsState {
   requests: TableRequest[]
   connected: boolean
+  reconnecting: boolean
   connect: (token: string, restaurantId: string) => void
   disconnect: () => void
   fetchPending: () => Promise<void>
@@ -30,6 +31,7 @@ interface TableRequestsState {
 }
 
 let socket: Socket | null = null
+let visibilityHandlerAttached = false
 
 const REQUEST_LABEL: Record<TableRequest['type'], string> = {
   CALL_WAITER: 'needs a waiter',
@@ -67,24 +69,69 @@ function playAlertSound() {
 export const useTableRequestsStore = create<TableRequestsState>((set, get) => ({
   requests: [],
   connected: false,
+  // True once we've been disconnected for a few seconds — used to show a
+  // "reconnecting" hint without flashing it during the brief gap every
+  // normal (re)connect goes through.
+  reconnecting: false,
 
   connect: (token, restaurantId) => {
     if (socket) return
 
+    // Prefer a websocket, but allow falling back to HTTP polling — some
+    // hosting proxies don't pass a raw websocket upgrade through cleanly,
+    // and polling-then-upgrade (socket.io's own default) is more reliable
+    // than forcing websocket only.
     socket = io(import.meta.env.VITE_SOCKET_URL || '', {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       auth: { token },
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
     })
 
+    let reconnectingTimer: ReturnType<typeof setTimeout> | null = null
+    const clearReconnectingTimer = () => {
+      if (reconnectingTimer) clearTimeout(reconnectingTimer)
+      reconnectingTimer = null
+    }
+
     socket.on('connect', () => {
-      set({ connected: true })
+      clearReconnectingTimer()
+      set({ connected: true, reconnecting: false })
       socket?.emit('join_restaurant', { restaurantId })
+      // Catch up on anything raised while we were disconnected.
+      get().fetchPending()
     })
 
-    socket.on('disconnect', () => set({ connected: false }))
+    socket.on('disconnect', (reason) => {
+      set({ connected: false })
+      console.warn('[table-requests] socket disconnected:', reason)
+      // Only show a "reconnecting" hint if it takes more than a few
+      // seconds — most disconnects recover almost immediately.
+      clearReconnectingTimer()
+      reconnectingTimer = setTimeout(() => set({ reconnecting: true }), 4000)
+    })
+
+    socket.on('connect_error', (err) => {
+      console.warn('[table-requests] socket connect_error:', err.message)
+    })
+
+    // Phones commonly suspend the socket connection while the screen is
+    // locked or the app is in the background (to save battery), and it can
+    // fail to silently resume on its own. When the app becomes visible or
+    // regains network again, force a reconnect attempt and refresh the
+    // list via the regular API so nothing was missed.
+    if (!visibilityHandlerAttached) {
+      visibilityHandlerAttached = true
+      const tryResume = () => {
+        if (document.visibilityState !== 'visible') return
+        if (socket && !socket.connected) socket.connect()
+        get().fetchPending()
+      }
+      document.addEventListener('visibilitychange', tryResume)
+      window.addEventListener('focus', tryResume)
+      window.addEventListener('online', tryResume)
+    }
 
     socket.on('TABLE_REQUEST_CREATED', (payload: any) => {
       set((state) => ({
@@ -117,7 +164,7 @@ export const useTableRequestsStore = create<TableRequestsState>((set, get) => ({
   disconnect: () => {
     socket?.close()
     socket = null
-    set({ connected: false, requests: [] })
+    set({ connected: false, reconnecting: false, requests: [] })
   },
 
   fetchPending: async () => {
