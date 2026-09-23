@@ -70,16 +70,21 @@ const Kitchen: React.FC = () => {
       const active = all.filter((o) => ['CREATED', 'ACCEPTED', 'PREPARING'].includes(o.status))
       setOrders(active)
 
-      // Auto-print any order that's newly arrived since the last fetch.
-      // Skipped on the very first load, so reopening/refreshing this page
-      // never reprints orders that were already here.
-      if (seenOrderIds.current !== null && autoPrint && getConnectedPrinter()) {
-        const isNew = (o: OrderWithItems) => o.status === 'CREATED' && !seenOrderIds.current!.has(o.id)
-        for (const order of active.filter(isNew)) {
-          const items = order.order_items || order.items || []
-          printKOTRaw(order, items as any).catch(() =>
-            toast.error(`Couldn't auto-print order ${order.order_number} — printer may have disconnected`, { duration: 6000 }),
-          )
+      // Auto-print only items that haven't been sent to the kitchen yet.
+      // This correctly handles both a brand-new order AND items added to an
+      // already-in-progress table bill — either way, only the new round
+      // prints, never the items that already went out.
+      if (autoPrint && getConnectedPrinter()) {
+        for (const order of active) {
+          const allItems = (order.order_items || order.items || []) as any[]
+          const unprinted = allItems.filter((it) => !it.kot_printed_at)
+          if (unprinted.length === 0) continue
+          try {
+            await printKOTRaw(order, unprinted as any)
+            await api.post(`/orders/${order.id}/kot-printed`, { item_ids: unprinted.map((it) => it.id) })
+          } catch {
+            toast.error(`Couldn't auto-print order ${order.order_number} — printer may have disconnected`, { duration: 6000 })
+          }
         }
       }
       seenOrderIds.current = new Set(active.map((o) => o.id))
@@ -485,7 +490,14 @@ const Kitchen: React.FC = () => {
                     {/* READY orders disappear from kitchen — waiter collects payment */}
                     <div className="flex gap-2">
                       <button
-                        onClick={() => printKOT(order, items)}
+                        onClick={() => {
+                          const unprinted = items.filter((it: any) => !it.kot_printed_at)
+                          const toPrint = unprinted.length > 0 ? unprinted : items
+                          printKOT(order, toPrint)
+                          if (unprinted.length > 0) {
+                            api.post(`/orders/${order.id}/kot-printed`, { item_ids: unprinted.map((it: any) => it.id) }).catch(() => {})
+                          }
+                        }}
                         className="flex-1 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1"
                         title="Print KOT"
                       >
