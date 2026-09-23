@@ -11,6 +11,13 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
+        // Make a newly-deployed build take over any tab that's already open
+        // immediately, instead of waiting for the next full reload. Without
+        // this, a waiter who has the app open in the background can be stuck
+        // running stale JS (e.g. missing the live "Call Waiter" socket
+        // handler) until they manually refresh.
+        skipWaiting: true,
+        clientsClaim: true,
         // Cache menu data for offline use
         runtimeCaching: [
           {
