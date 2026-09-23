@@ -85,7 +85,14 @@ const EnvSchema = z.object({
   WHATSAPP_APP_SECRET:      z.string().optional().default(''),
 
   // Zomato (optional — only needed for Zomato integration)
-  ZOMATO_WEBHOOK_SECRET: z.string().optional().default(''),
+  ZOMATO_WEBHOOK_SECRET: z.string().optional().default(''),  // Web Push (browser/PWA notifications — e.g. "Call Waiter" alerts that
+  // reach the Waiter app even when it isn't the active tab). Generate a
+  // pair with `npx web-push generate-vapid-keys`. Leave empty to disable —
+  // push sends are skipped silently and the app falls back to in-app/socket
+  // alerts only.
+  VAPID_PUBLIC_KEY:  z.string().optional().default(''),
+  VAPID_PRIVATE_KEY: z.string().optional().default(''),
+  VAPID_SUBJECT:     z.string().optional().default('mailto:support@auraos.app'),
 
   // Email / SMTP (for password reset emails)
   // Leave SMTP_HOST empty to use console logging in development
