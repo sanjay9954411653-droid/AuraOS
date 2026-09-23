@@ -11,6 +11,7 @@ import ProfilePage  from './pages/ProfilePage'
 import BottomNav    from './components/BottomNav'
 import OfflineBanner from './components/OfflineBanner'
 import TableRequestsBanner from './components/TableRequestsBanner'
+import ConnectionBanner from './components/ConnectionBanner'
 import { useTableRequestsStore } from './store/useTableRequestsStore'
 
 // ── Protected wrapper ─────────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ const Protected: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="min-h-screen pb-20">
     <OfflineBanner />
+    <ConnectionBanner />
     <TableRequestsBanner />
     {children}
     <BottomNav />
