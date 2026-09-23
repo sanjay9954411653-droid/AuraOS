@@ -497,17 +497,38 @@ router.post('/order/:slug', publicOrderRateLimiter, async (req: Request, res: Re
       if (tableCheck.rows.length === 0) {
         throw new BadRequestError('Table not found');
       }
-      const tablePasscode = tableCheck.rows[0].passcode;
+            const tablePasscode = tableCheck.rows[0].passcode;
       if (tablePasscode && payload.table_passcode !== tablePasscode) {
         throw new BadRequestError('Table passcode is missing or incorrect');
       }
     }
 
-    const orderNumber = await generateOrderNumber(restaurantId);
+    // ── Merge into the table's existing open bill, if any ────────────────
+    // Keeps ONE order/bill per table until staff marks it COMPLETED (payment
+    // collected) — a repeat order from the same table tops up that same bill
+    // instead of creating a brand new one each time.
+    let existingOrder = payload.table_id
+      ? await ordersRepository.findActiveByTableId(restaurantId, payload.table_id)
+      : null;
 
-    // ── QSR token generation ────────────────────────────────────────────
-    let tokenNumber: string | null = null;
-    if (restaurant.qsr_enabled) {
+    // Snapshot which order_item rows already existed, so the modifier-
+    // attachment step below only touches items from THIS request.
+    let preExistingItemIds = new Set<string>();
+    if (existingOrder) {
+      const beforeRows = await query(
+        `SELECT id FROM order_items WHERE order_id = $1`,
+        [existingOrder.id],
+      );
+      preExistingItemIds = new Set(beforeRows.rows.map((r) => r.id));
+    }
+
+    const orderNumber = existingOrder ? existingOrder.order_number : await generateOrderNumber(restaurantId);
+
+       // ── QSR token generation ────────────────────────────────────────────
+    // Reuse the existing token when topping up a bill — a table keeps the
+    // same token for the whole visit.
+    let tokenNumber: string | null = existingOrder ? existingOrder.token_number : null;
+    if (!existingOrder && restaurant.qsr_enabled) {
       const counter = await restaurantsRepository.nextTokenNumber(restaurantId);
       const seq = String(counter).padStart(3, '0');
       tokenNumber = `${restaurant.token_prefix}-${seq}`;
@@ -521,26 +542,46 @@ router.post('/order/:slug', publicOrderRateLimiter, async (req: Request, res: Re
     if (payload.payment_method) noteParts.push(`Payment: ${payload.payment_method}`);
     if (payload.notes) noteParts.push(payload.notes);
 
-    const { order } = await ordersRepository.createOrderWithItems(
-      restaurantId,
-      payload.table_id ?? null,
-      orderNumber,
-      'ONLINE',
-      'QR',
-      totalAmount,
-      10,
-      noteParts.join(' | ') || null,
-      null,
-      orderItems.map((i) => ({
-        menu_item_id: i.menu_item_id,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-        special_instructions: i.special_instructions,
-        status: i.status,
-      })),
-      'CREATED',
-      tokenNumber,
-    );
+        const { order } = existingOrder
+      ? await ordersRepository.addItemsToOrder(
+          existingOrder.id,
+          restaurantId,
+          orderItems.map((i) => ({
+            menu_item_id: i.menu_item_id,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+            special_instructions: i.special_instructions,
+            status: i.status,
+          })),
+        )
+      : await ordersRepository.createOrderWithItems(
+          restaurantId,
+          payload.table_id ?? null,
+          orderNumber,
+          'ONLINE',
+          'QR',
+          totalAmount,
+          10,
+          noteParts.join(' | ') || null,
+          null,
+          orderItems.map((i) => ({
+            menu_item_id: i.menu_item_id,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+            special_instructions: i.special_instructions,
+            status: i.status,
+          })),
+          'CREATED',
+          tokenNumber,
+        );
+
+    // If the bill had already reached READY (kitchen finished, awaiting
+    // payment) and the customer just added more items, reopen it so the
+    // kitchen sees the new items instead of it sitting marked "ready".
+    if (existingOrder && existingOrder.status === 'READY') {
+      await query(`UPDATE orders SET status = 'CREATED', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [order.id]);
+      order.status = 'CREATED';
+    }
 
     // ── Link customer + apply loyalty/coupon side-effects ────────────────
     // Uses the customer resolved earlier. Coupon consumption, loyalty redeem,
@@ -555,6 +596,7 @@ router.post('/order/:slug', publicOrderRateLimiter, async (req: Request, res: Re
       } catch { /* non-fatal */ }
     }
 
+   if (!existingOrder) { 
     try {
       const { withTenant } = await import('@/config/database');
       await withTenant(restaurantId, async (q) => {
@@ -588,6 +630,7 @@ router.post('/order/:slug', publicOrderRateLimiter, async (req: Request, res: Re
     } catch (err) {
       console.error('[loyalty/coupon] post-order processing failed (order still placed):', err);
     }
+  } 
 
     // ── Save modifier selections for each order item ─────────────────────
     for (let idx = 0; idx < orderItems.length; idx++) {
@@ -604,7 +647,8 @@ router.post('/order/:slug', publicOrderRateLimiter, async (req: Request, res: Re
       [order.id],
     );
 
-    for (const oiRow of orderItemRows.rows) {
+        for (const oiRow of orderItemRows.rows) {
+      if (preExistingItemIds.has(oiRow.id)) continue; // line from an earlier order on this bill — already has its modifiers
       const matchingItem = orderItems.find((oi) => oi.menu_item_id === oiRow.menu_item_id);
       if (matchingItem && matchingItem.modifiers.length > 0) {
         for (const mod of matchingItem.modifiers) {
@@ -657,18 +701,23 @@ router.post('/order/:slug', publicOrderRateLimiter, async (req: Request, res: Re
       }
     }
 
-    // ── Broadcast to Kitchen Display via Socket.io ───────────────────────
+        // ── Broadcast to Kitchen Display via Socket.io ───────────────────────
     const shouldBroadcastNow =
       !isOnlinePayment || !razorpayData;
 
     if (shouldBroadcastNow) {
-      eventBroadcaster?.broadcastOrderCreated({
+      const broadcastPayload = {
         order_id: order.id,
         restaurant_id: restaurantId,
         status: order.status,
         total_amount: Number(order.total_amount),
         table_id: order.table_id,
-      });
+      };
+      if (existingOrder) {
+        eventBroadcaster?.broadcastOrderUpdated(broadcastPayload);
+      } else {
+        eventBroadcaster?.broadcastOrderCreated(broadcastPayload);
+      }
     }
 
     res.status(201).json(
