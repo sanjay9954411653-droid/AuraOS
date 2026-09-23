@@ -14,6 +14,8 @@ router.get('/active/by-table/:tableId', authenticate, (req, res, next) => orders
 router.get('/:id', authenticate, (req, res, next) => ordersController.getById(req, res, next));
 // Append items to an existing open order (running tab)
 router.post('/:id/items', authenticate, checkSubscription, (req, res, next) => ordersController.addItems(req, res, next));
+// Mark items as sent to the kitchen printer (so a later top-up doesn't reprint them)
+router.post('/:id/kot-printed', authenticate, checkSubscription, authorize('KITCHEN', 'ADMIN'), (req, res, next) => ordersController.markKotPrinted(req, res, next));
 // Update a single item's status (PENDING → PREPARING → DONE) — kitchen use
 router.patch('/:id/items/:itemId', authenticate, checkSubscription, authorize('KITCHEN', 'ADMIN'), (req, res, next) => ordersController.updateItemStatus(req, res, next));
 // Accept both PUT and PATCH for status updates (frontend compatibility)
