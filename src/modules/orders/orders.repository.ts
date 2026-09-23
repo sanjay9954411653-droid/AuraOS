@@ -278,10 +278,24 @@ export class OrdersRepository {
 
   async findItemsByOrderId(orderId: string): Promise<OrderItem[]> {
     const result = await query(
-      "SELECT id, order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status, created_at, updated_at FROM order_items WHERE order_id = $1 ORDER BY created_at ASC",
+      "SELECT id, order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status, kot_printed_at, created_at, updated_at FROM order_items WHERE order_id = $1 ORDER BY created_at ASC",
       [orderId],
     );
     return result.rows;
+  }
+
+  /**
+   * Mark items as sent to the kitchen printer — used so a later top-up on
+   * the same bill only reprints the items that haven't gone out yet.
+   */
+  async markItemsKotPrinted(orderId: string, restaurantId: string, itemIds: string[]): Promise<void> {
+    if (itemIds.length === 0) return;
+    await query(
+      `UPDATE order_items
+       SET kot_printed_at = CURRENT_TIMESTAMP
+       WHERE order_id = $1 AND restaurant_id = $2 AND id = ANY($3::uuid[])`,
+      [orderId, restaurantId, itemIds],
+    );
   }
 
   async findByRestaurantId(
@@ -426,7 +440,8 @@ export class OrdersRepository {
               'id', oi.id, 'order_id', oi.order_id, 'restaurant_id', oi.restaurant_id,
               'menu_item_id', oi.menu_item_id, 'menu_item_name', mi.name, 'quantity', oi.quantity,
               'unit_price', oi.unit_price, 'special_instructions', oi.special_instructions,
-              'status', oi.status
+              'status', oi.status, 'kot_printed_at', oi.kot_printed_at
+            )
             )
           ) FILTER (WHERE oi.id IS NOT NULL), '[]'
         ) AS order_items
