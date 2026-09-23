@@ -7,6 +7,7 @@ import {
   UpdateOrderRequestSchema,
   AddOrderItemsRequestSchema,
   UpdateOrderItemStatusSchema,
+  MarkKotPrintedSchema,
 } from './orders.types';
 import { successResponse } from '@/shared/utils/responseHandler';
 import { parsePagination, paginatedResponse } from '@/shared/utils/pagination';
@@ -118,6 +119,21 @@ export class OrdersController {
       });
 
       res.status(200).json(successResponse(result, { message: 'Items added to order' }));
+    } catch (error) {
+      next(error);
+    }
+  }
+  
+  async markKotPrinted(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const restaurantId = req.user?.restaurantId;
+      if (!restaurantId) throw new Error('User not associated with a restaurant');
+
+      const { id } = req.params;
+      const payload = MarkKotPrintedSchema.parse(req.body);
+      await ordersService.markKotPrinted(id, restaurantId, payload.item_ids);
+
+      res.status(200).json(successResponse({ marked: true }));
     } catch (error) {
       next(error);
     }
