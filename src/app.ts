@@ -29,7 +29,7 @@ import invoicesRoutes from '@/modules/subscriptions/invoices.routes';
 import plansRoutes from '@/modules/subscriptions/plans.routes';
 import modifiersRoutes from '@/modules/modifiers/modifier.routes';
 import organizationsRoutes from '@/modules/organizations/organization.routes';
-import tableRequestsRoutes from '@/modules/tableRequests/tableRequests.routes';
+import tableRequestsRoutes from '@/modules/tableRequests/tableRequests.routes';import pushRoutes from '@/modules/push/push.routes';
 import { errorHandler } from '@/shared/middleware/errorHandler';
 import { globalRateLimiter } from '@/shared/middleware/rateLimiter';
 import { requestMonitor } from '@/shared/middleware/requestMonitor';
@@ -122,7 +122,7 @@ export function createApp(): Express {
   app.use('/api/v1/subscription-plans', plansRoutes);
   app.use('/api/v1/modifiers', modifiersRoutes);
   app.use('/api/v1/organizations', organizationsRoutes);
-   app.use('/api/v1/table-requests', tableRequestsRoutes);
+   app.use('/api/v1/table-requests', tableRequestsRoutes);app.use('/api/v1/push', pushRoutes);
   app.use('/api/v1/integrations/zomato', zomatoRoutes);
   app.use('/api/v1/integrations/whatsapp', whatsappRoutes);
 
