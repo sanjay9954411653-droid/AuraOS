@@ -34,9 +34,22 @@ const DEFAULT_FEATURES: RestaurantFeatures = {
   waiter_app: true,
 }
 
+export type LandingPage = 'dashboard' | 'orders' | 'tables' | 'kitchen' | 'menu' | 'reports'
+
+// Where each landing-page choice actually goes.
+export const LANDING_PAGE_ROUTES: Record<LandingPage, string> = {
+  dashboard: '/dashboard',
+  orders: '/orders',
+  tables: '/tables',
+  kitchen: '/kitchen',
+  menu: '/menu',
+  reports: '/reports',
+}
+
 interface FeaturesContextType {
   features: RestaurantFeatures
   restaurantType: RestaurantType | null
+  defaultLandingPage: LandingPage
   loading: boolean
   reload: () => Promise<void>
 }
@@ -44,6 +57,7 @@ interface FeaturesContextType {
 const FeaturesContext = createContext<FeaturesContextType>({
   features: DEFAULT_FEATURES,
   restaurantType: null,
+  defaultLandingPage: 'dashboard',
   loading: false,
   reload: async () => {},
 })
@@ -54,6 +68,7 @@ export const FeaturesProvider: React.FC<{ children: ReactNode }> = ({ children }
   const { user } = useAuth()
   const [features, setFeatures] = useState<RestaurantFeatures>(DEFAULT_FEATURES)
   const [restaurantType, setRestaurantType] = useState<RestaurantType | null>(null)
+  const [defaultLandingPage, setDefaultLandingPage] = useState<LandingPage>('dashboard')
   const [loading, setLoading] = useState(true)
 
   const reload = async () => {
@@ -65,6 +80,9 @@ export const FeaturesProvider: React.FC<{ children: ReactNode }> = ({ children }
       // Extract restaurant_type from the same response (no extra API call)
       const rt = res.data.data?.restaurant_type
       if (rt) setRestaurantType(rt)
+      // Same response also carries the chosen "opens on" page (Settings → Features)
+      const dlp = res.data.data?.default_landing_page
+      if (dlp && dlp in LANDING_PAGE_ROUTES) setDefaultLandingPage(dlp)
     } catch {
       // Non-fatal — keep defaults
     } finally {
@@ -75,7 +93,7 @@ export const FeaturesProvider: React.FC<{ children: ReactNode }> = ({ children }
   useEffect(() => { reload() }, [user])
 
   return (
-    <FeaturesContext.Provider value={{ features, restaurantType, loading, reload }}>
+    <FeaturesContext.Provider value={{ features, restaurantType, defaultLandingPage, loading, reload }}>
       {children}
     </FeaturesContext.Provider>
   )

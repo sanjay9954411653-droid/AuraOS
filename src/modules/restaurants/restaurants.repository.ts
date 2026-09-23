@@ -5,7 +5,7 @@ const RESTAURANT_COLS = `id, name, slug, auto_approve_online_orders, delay_thres
   qr_mode, features, gstin, tax_rate::float8 AS tax_rate, tax_inclusive,
   restaurant_type, qsr_enabled, token_prefix, token_daily_reset, token_counter,
   logo_url, hero_image_url, tagline, description, address, phone, whatsapp,
-  public_email, social_links, website_published,
+  public_email, social_links, website_published, default_landing_page,
   created_at, updated_at`;
 
 export class RestaurantsRepository {
@@ -66,6 +66,7 @@ export class RestaurantsRepository {
       public_email: string | null;
       social_links: Record<string, string>;
       website_published: boolean;
+      default_landing_page: string;
     }>,
   ): Promise<Restaurant | null> {
     const fields: string[] = [];
@@ -95,6 +96,7 @@ export class RestaurantsRepository {
     if (updates.public_email !== undefined) { fields.push(`public_email = $${paramIndex++}`); values.push(updates.public_email); }
     if (updates.social_links !== undefined) { fields.push(`social_links = $${paramIndex++}::jsonb`); values.push(JSON.stringify(updates.social_links)); }
     if (updates.website_published !== undefined) { fields.push(`website_published = $${paramIndex++}`); values.push(updates.website_published); }
+    if (updates.default_landing_page !== undefined) { fields.push(`default_landing_page = $${paramIndex++}`); values.push(updates.default_landing_page); }
 
     if (fields.length === 0) return this.findById(restaurantId);
 

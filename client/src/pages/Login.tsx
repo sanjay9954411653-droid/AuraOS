@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { getErrorMessage } from '../api'
+import api from '../api'
+import { LANDING_PAGE_ROUTES, LandingPage } from '../contexts/FeaturesContext'
 import { ArrowRightIcon, SparklesIcon, BoltIcon, ChartBarIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState('admin@demo-kitchen.local')
-  const [password, setPassword] = useState('demo1234')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
@@ -18,7 +20,17 @@ const Login: React.FC = () => {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/dashboard')
+      // Land on whichever page this restaurant has chosen (Settings → Features),
+      // falling back to the Dashboard if that lookup fails for any reason.
+      let landingRoute = '/dashboard'
+      try {
+        const res = await api.get('/restaurants/me')
+        const dlp: LandingPage | undefined = res.data.data?.default_landing_page
+        if (dlp && dlp in LANDING_PAGE_ROUTES) landingRoute = LANDING_PAGE_ROUTES[dlp]
+      } catch {
+        // Non-fatal — Dashboard is a safe default.
+      }
+      navigate(landingRoute)
     } catch (err: any) {
       setError(getErrorMessage(err))
     } finally {
@@ -96,6 +108,7 @@ const Login: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
                 <input
                   type="email"
+                  autoComplete="username"
                   placeholder="you@restaurant.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -109,6 +122,7 @@ const Login: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-300 mb-2">Password</label>
                 <input
                   type="password"
+                  autoComplete="current-password"
                   placeholder="Your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -152,15 +166,6 @@ const Login: React.FC = () => {
               <Link to="/password-reset" className="text-slate-400 hover:text-slate-300 transition-colors">
                 Forgot password?
               </Link>
-            </div>
-
-            {/* Demo Info */}
-            <div className="mt-8 pt-6 border-t border-white/[0.06]">
-              <p className="text-xs text-slate-500 font-medium mb-3">Demo Credentials (Pre-filled)</p>
-              <div className="space-y-2 text-xs text-slate-400">
-                <p className="font-mono">admin@demo-kitchen.local</p>
-                <p className="font-mono">demo1234</p>
-              </div>
             </div>
 
             {/* Register link */}

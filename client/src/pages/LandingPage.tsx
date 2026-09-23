@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatures, LANDING_PAGE_ROUTES } from '../contexts/FeaturesContext';
 import ContactModal from '../components/ContactModal';
 import {
   ChartBarIcon,
@@ -213,6 +214,7 @@ const SectionHeading: React.FC<{ overline?: string; title: string; subtitle: str
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
+  const { defaultLandingPage } = useFeatures();
   const [navOpen, setNavOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -221,11 +223,11 @@ const LandingPage: React.FC = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard', { replace: true });
+      navigate(LANDING_PAGE_ROUTES[defaultLandingPage] || '/dashboard', { replace: true });
     } else {
       setAuthChecked(true);
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, defaultLandingPage, navigate]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);

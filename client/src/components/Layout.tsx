@@ -63,32 +63,47 @@ interface NavItem {
   superAdmin?: boolean
   featureKey?: string
   restaurantTypes?: RestaurantType[]
+  // Marks the START of a new group (a caption is shown above it).
   section?: string
+  // Filled in below: which group this item belongs to, even if it isn't
+  // itself the first item of that group — used so a section caption still
+  // shows correctly if that first item gets hidden for the current user.
+  effectiveSection?: string
 }
 
+// Grouped into the same kind of sections a restaurant-POS sidebar usually
+// uses (Operations / Catalog & Inventory / Money / Reports / Grow Your
+// Business), so the menu reads as a list of short groups instead of one
+// long unbroken list. `section` marks the first item of a new group — a
+// small caption is rendered above it.
 const navItems: NavItem[] = [
-  { name: 'Dashboard',        href: '/dashboard',         icon: HomeIcon },
-  { name: 'Orders',           href: '/orders',             icon: ClipboardDocumentListIcon },
+  { name: 'Dashboard',        href: '/dashboard',         icon: HomeIcon,                 section: 'Overview' },
+
+  { name: 'Orders',           href: '/orders',             icon: ClipboardDocumentListIcon, section: 'Operations' },
   { name: 'Tables',           href: '/tables',             icon: TableCellsIcon,           restaurantTypes: NAV_TYPE_VISIBILITY['Tables'] },
   { name: 'Bookings',         href: '/reservations',       icon: CalendarDaysIcon },
-  { name: 'Menu',             href: '/menu',               icon: BookOpenIcon },
-  { name: 'Payments',         href: '/payments',           icon: CurrencyDollarIcon,       featureKey: 'payments' },
   { name: 'Kitchen Display',  href: '/kitchen',            icon: ComputerDesktopIcon,      featureKey: 'kitchen_display' },
-  { name: 'Inventory',        href: '/inventory',          icon: CubeIcon,                 roles: ['ADMIN'], featureKey: 'inventory' },
-  { name: 'Users',            href: '/users',              icon: UsersIcon,                roles: ['ADMIN'] },
-  { name: 'Reports',          href: '/reports',            icon: ChartBarIcon,             roles: ['ADMIN'], featureKey: 'reports' },
-  { name: 'QR Settings',      href: '/qr-settings',        icon: QrCodeIcon,               roles: ['ADMIN'], featureKey: 'qr_ordering', restaurantTypes: NAV_TYPE_VISIBILITY['QR Settings'] },
-    { name: 'Table QR Codes',   href: '/table-qr-codes',     icon: QrCodeIcon,               roles: ['ADMIN'], featureKey: 'qr_ordering', restaurantTypes: NAV_TYPE_VISIBILITY['QR Settings'] },
-    { name: 'Branding',         href: '/branding',           icon: SwatchIcon,               roles: ['ADMIN'] },
+  { name: 'Table QR Codes',   href: '/table-qr-codes',     icon: QrCodeIcon,               roles: ['ADMIN'], featureKey: 'qr_ordering', restaurantTypes: NAV_TYPE_VISIBILITY['QR Settings'] },
   { name: 'Delivery Zones',   href: '/delivery-zones',     icon: MapPinIcon,               roles: ['ADMIN'] },
-  { name: 'Reservations',     href: '/reservations',       icon: CalendarDaysIcon },
+
+  { name: 'Menu',             href: '/menu',               icon: BookOpenIcon,             section: 'Catalog & Inventory' },
+  { name: 'Modifiers',        href: '/modifiers',          icon: TagIcon,                  roles: ['ADMIN'] },
+  { name: 'Inventory',        href: '/inventory',          icon: CubeIcon,                 roles: ['ADMIN'], featureKey: 'inventory' },
+
+  { name: 'Payments',         href: '/payments',           icon: CurrencyDollarIcon,       featureKey: 'payments', section: 'Money' },
   { name: 'Coupons',          href: '/coupons',            icon: TicketIcon,               roles: ['ADMIN'] },
   { name: 'Loyalty',          href: '/loyalty',            icon: GiftIcon,                 roles: ['ADMIN'] },
-  { name: 'Reviews',          href: '/reviews',            icon: StarIcon,                 roles: ['ADMIN'] },
-  { name: 'Modifiers',        href: '/modifiers',          icon: TagIcon,                  roles: ['ADMIN'] },
-  { name: 'Zomato',           href: '/zomato-settings',    icon: BuildingStorefrontIcon,   roles: ['ADMIN'], featureKey: 'zomato' },
   { name: 'Subscription',     href: '/subscription',       icon: CreditCardIcon,           roles: ['ADMIN'] },
-  { name: 'Features',         href: '/features',           icon: Cog6ToothIcon,            roles: ['ADMIN'] },
+
+  { name: 'Reports',          href: '/reports',            icon: ChartBarIcon,             roles: ['ADMIN'], featureKey: 'reports', section: 'Reports' },
+  { name: 'Reviews',          href: '/reviews',            icon: StarIcon,                 roles: ['ADMIN'] },
+
+  { name: 'Users',            href: '/users',              icon: UsersIcon,                roles: ['ADMIN'], section: 'Team & Setup' },
+  { name: 'Branding',         href: '/branding',           icon: SwatchIcon,               roles: ['ADMIN'] },
+  { name: 'QR Settings',      href: '/qr-settings',        icon: QrCodeIcon,               roles: ['ADMIN'], featureKey: 'qr_ordering', restaurantTypes: NAV_TYPE_VISIBILITY['QR Settings'] },
+  { name: 'Zomato',           href: '/zomato-settings',    icon: BuildingStorefrontIcon,   roles: ['ADMIN'], featureKey: 'zomato' },
+  { name: 'Settings',         href: '/features',           icon: Cog6ToothIcon,            roles: ['ADMIN'] },
+
   // AI Analytics
   { name: 'AI Dashboard',     href: '/ai',                 icon: SparklesIcon,             roles: ['ADMIN'], section: 'AI Analytics' },
   { name: 'AI Copilot',       href: '/ai/copilot',         icon: ChatBubbleLeftRightIcon,  roles: ['ADMIN'] },
@@ -105,10 +120,21 @@ const navItems: NavItem[] = [
   { name: 'Agents',           href: '/ai/agents',          icon: CircleStackIcon,          roles: ['ADMIN'] },
   { name: 'Knowledge Base',   href: '/ai/knowledge',       icon: BookmarkSquareIcon,       roles: ['ADMIN'] },
   { name: 'System Health',    href: '/ai/health',          icon: HeartIcon,                roles: ['ADMIN'] },
+
   { name: 'Platform (Owner)', href: '/owner',              icon: GlobeAltIcon,             superAdmin: true },
-    { name: 'Platform Branding', href: '/owner/branding',    icon: SwatchIcon,               superAdmin: true },
+  { name: 'Platform Branding', href: '/owner/branding',    icon: SwatchIcon,               superAdmin: true },
   { name: 'Multi Outlet',     href: '/multi-outlet',      icon: BuildingStorefrontIcon,    superAdmin: true },
 ]
+
+// Forward-fill effectiveSection so a group's caption still appears even if
+// that group's first item ends up hidden for the current user/role.
+;(() => {
+  let current: string | undefined
+  for (const item of navItems) {
+    if (item.section) current = item.section
+    item.effectiveSection = current
+  }
+})()
 
 interface LayoutProps {
   children: React.ReactNode
@@ -194,7 +220,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
-        {filteredNav.map((item) => {
+        {(() => { let lastSection: string | undefined; return filteredNav.map((item) => {
           const isActive =
             item.href === '/'
               ? location.pathname === '/'
@@ -203,6 +229,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 : location.pathname.startsWith(item.href)
           const isAiSection = item.section === 'AI Analytics'
           const isAiChild = !item.section && item.href.startsWith('/ai/')
+
+          // Plain (non-AI) group caption — only shown once per group, right
+          // above its first *visible* item.
+          const showSectionCaption =
+            !isAiSection && !isAiChild &&
+            item.effectiveSection !== undefined &&
+            item.effectiveSection !== 'AI Analytics' &&
+            item.effectiveSection !== lastSection
+          if (showSectionCaption) lastSection = item.effectiveSection
 
           if (isAiSection) {
             return (
@@ -251,25 +286,31 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           }
 
           return (
-            <Link
-              key={item.name}
-              to={item.href}
-              onClick={() => setSidebarOpen(false)}
-              className={cn('nav-item relative', isActive && 'active')}
-            >
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-accent-400" />
+            <React.Fragment key={item.name}>
+              {showSectionCaption && (
+                <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-navy-400">
+                  {item.effectiveSection}
+                </p>
               )}
-              <item.icon className={cn('w-5 h-5 shrink-0', isActive ? 'text-accent-400' : 'text-navy-300')} />
-              <span className="flex-1">{item.name}</span>
-              {item.badge ? (
-                <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
-                  {item.badge}
-                </span>
-              ) : null}
-            </Link>
+              <Link
+                to={item.href}
+                onClick={() => setSidebarOpen(false)}
+                className={cn('nav-item relative', isActive && 'active')}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-accent-400" />
+                )}
+                <item.icon className={cn('w-5 h-5 shrink-0', isActive ? 'text-accent-400' : 'text-navy-300')} />
+                <span className="flex-1">{item.name}</span>
+                {item.badge ? (
+                  <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </Link>
+            </React.Fragment>
           )
-        })}
+        }) })()}
       </nav>
 
       {/* Footer */}

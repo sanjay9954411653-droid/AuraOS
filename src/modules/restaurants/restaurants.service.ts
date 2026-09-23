@@ -159,6 +159,7 @@ export class RestaurantsService {
     if (payload.public_email !== undefined) { updates.public_email = payload.public_email; }
     if (payload.social_links !== undefined) { updates.social_links = payload.social_links; }
     if (payload.website_published !== undefined) { updates.website_published = payload.website_published; }
+    if (payload.default_landing_page !== undefined) { updates.default_landing_page = payload.default_landing_page; }
 
     const updated = await restaurantsRepository.update(restaurantId, updates);
     if (!updated) {

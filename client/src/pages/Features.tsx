@@ -10,7 +10,7 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import api, { getErrorMessage } from '../api'
-import { useFeatures, RestaurantFeatures } from '../contexts/FeaturesContext'
+import { useFeatures, RestaurantFeatures, LandingPage } from '../contexts/FeaturesContext'
 import Card from '../components/Card'
 import Loading from '../components/Loading'
 import {
@@ -22,6 +22,11 @@ import {
   BuildingStorefrontIcon,
   CurrencyDollarIcon,
   DevicePhoneMobileIcon,
+  HomeIcon,
+  ClipboardDocumentListIcon,
+  TableCellsIcon,
+  BookOpenIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline'
 
 interface FeatureDef {
@@ -91,9 +96,33 @@ const FEATURE_DEFS: FeatureDef[] = [
   },
 ]
 
+const LANDING_PAGE_OPTIONS: { value: LandingPage; label: string; description: string; icon: React.ElementType }[] = [
+  { value: 'dashboard', label: 'Dashboard', description: "Today's sales, cash drawer and a quick business summary.", icon: HomeIcon },
+  { value: 'orders',    label: 'Orders',    description: 'The order list, with New Order front and centre — good for staff who mainly take orders.', icon: ClipboardDocumentListIcon },
+  { value: 'tables',    label: 'Tables',    description: 'The table layout, for hosts and floor staff.', icon: TableCellsIcon },
+  { value: 'kitchen',   label: 'Kitchen Display', description: 'The live kitchen order screen.', icon: ComputerDesktopIcon },
+  { value: 'menu',      label: 'Menu',      description: "The dishes and categories you're editing right now.", icon: BookOpenIcon },
+  { value: 'reports',   label: 'Reports',   description: 'Sales and revenue reports.', icon: ChartBarIcon },
+]
+
 const Features: React.FC = () => {
-  const { features, loading, reload } = useFeatures()
+  const { features, defaultLandingPage, loading, reload } = useFeatures()
   const [saving, setSaving] = useState<keyof RestaurantFeatures | null>(null)
+  const [savingLanding, setSavingLanding] = useState(false)
+
+  const setLandingPage = async (value: LandingPage) => {
+    if (value === defaultLandingPage) return
+    setSavingLanding(true)
+    try {
+      await api.put('/restaurants/me', { default_landing_page: value })
+      await reload()
+      toast.success('Default page updated')
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setSavingLanding(false)
+    }
+  }
 
   const toggle = async (key: keyof RestaurantFeatures) => {
     setSaving(key)
@@ -115,7 +144,48 @@ const Features: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Features</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Set up how AuraOS opens and which modules are active for this restaurant.
+        </p>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-bold text-slate-900">Default page</h2>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Choose which page opens first when someone signs in — handy if your staff mostly take orders and don't need the Dashboard every time.
+        </p>
+      </div>
+
+      <Card padding="none">
+        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 divide-slate-100">
+          {LANDING_PAGE_OPTIONS.map((opt) => {
+            const selected = defaultLandingPage === opt.value
+            return (
+              <button
+                key={opt.value}
+                onClick={() => setLandingPage(opt.value)}
+                disabled={savingLanding}
+                className={`flex items-start gap-3 px-5 py-4 text-left transition-colors disabled:opacity-60 ${
+                  selected ? 'bg-brand-50' : 'hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selected ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                  <opt.icon className="w-4.5 h-4.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold ${selected ? 'text-brand-700' : 'text-slate-900'}`}>{opt.label}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{opt.description}</p>
+                </div>
+                {selected && <CheckCircleIcon className="w-5 h-5 text-brand-600 shrink-0" />}
+              </button>
+            )
+          })}
+        </div>
+      </Card>
+
+      <div>
+        <h2 className="text-lg font-bold text-slate-900">Modules</h2>
         <p className="text-sm text-slate-500 mt-0.5">
           Enable or disable modules for this restaurant. Changes take effect immediately.
         </p>

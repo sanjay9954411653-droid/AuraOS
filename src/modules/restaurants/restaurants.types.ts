@@ -46,6 +46,7 @@ export const UpdateRestaurantRequestSchema = z.object({
   whatsapp:          z.string().max(20).nullable().optional(),
   public_email:      z.string().max(255).nullable().optional(),
   social_links:      z.record(z.string()).optional(),
+  default_landing_page: z.enum(['dashboard','orders','tables','kitchen','menu','reports']).optional(),
   website_published: z.boolean().optional(),
 });
 
@@ -115,6 +116,7 @@ export interface Restaurant {
   public_email: string | null;
   social_links: Record<string, string>;
   website_published: boolean;
+  default_landing_page: string;
   created_at: Date;
   updated_at: Date;
 }
