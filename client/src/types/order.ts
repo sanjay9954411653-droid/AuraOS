@@ -33,6 +33,12 @@ export interface OrderItem {
 
   status?: string;
 
+  /** When this item was sent to the kitchen printer (null/undefined = not yet printed). */
+  kot_printed_at?: string | null;
+
+  /** Which trip to the kitchen this item belongs to (1 = first order, 2 = first add-on, ...). */
+  round?: number;
+
   modifiers?: OrderItemModifier[];
 }
 

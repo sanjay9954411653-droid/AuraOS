@@ -36,7 +36,7 @@ interface PrintKOTProps {
  * Programmatically print a KOT without showing a preview modal.
  * Opens a new window, writes the HTML, triggers print, closes.
  */
-export function printKOT(order: Order, items: OrderItem[], restaurantName = 'Kitchen'): void {
+export function printKOT(order: Order, items: OrderItem[], restaurantName = 'Kitchen', round?: number): void {
   const win = window.open('', '_blank', 'width=400,height=600')
   if (!win) return
 
@@ -107,6 +107,7 @@ export function printKOT(order: Order, items: OrderItem[], restaurantName = 'Kit
           ${esc(order.order_source)}
         </div>
         <div style="font-size:11px;color:#555;">${formatDate(order.created_at)}</div>
+        ${round && round > 1 ? `<div style="font-size:22px;font-weight:bold;margin-top:6px;border:2px solid #000;display:inline-block;padding:2px 10px;">ROUND ${round}</div><div style="font-size:10px;margin-top:2px;">ADD-ON ITEMS ONLY</div>` : ''}
       </div>
 
       <div class="divider"></div>

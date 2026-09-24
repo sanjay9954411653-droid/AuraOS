@@ -19,6 +19,19 @@ import {
 
 type SortBy = 'time' | 'priority'
 
+/** Groups items by kitchen round (trip). Items with no round are treated as round 1. */
+function groupByRound<T extends { round?: number }>(items: T[]): Array<{ round: number; items: T[] }> {
+  const map = new Map<number, T[]>()
+  for (const it of items) {
+    const r = it.round || 1
+    if (!map.has(r)) map.set(r, [])
+    map.get(r)!.push(it)
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([round, items]) => ({ round, items }))
+}
+
 interface OrderWithItems extends Order {
   items?: Array<{
     id?: string
@@ -80,7 +93,10 @@ const Kitchen: React.FC = () => {
           const unprinted = allItems.filter((it) => !it.kot_printed_at)
           if (unprinted.length === 0) continue
           try {
-            await printKOTRaw(order, unprinted as any)
+            // One ticket per round, so a customer's later add-on is its own KOT
+            for (const g of groupByRound(unprinted)) {
+              await printKOTRaw(order, g.items as any, undefined, g.round)
+            }
             await api.post(`/orders/${order.id}/kot-printed`, { item_ids: unprinted.map((it) => it.id) })
           } catch {
             toast.error(`Couldn't auto-print order ${order.order_number} — printer may have disconnected`, { duration: 6000 })
@@ -414,7 +430,18 @@ const Kitchen: React.FC = () => {
 
                   {/* Items */}
                   <div className="flex-1 px-4 py-3 space-y-2 overflow-y-auto scrollbar-thin">
-                    {items.map((item, idx) => {
+                    {groupByRound(items as any[]).map((group, gi, groups) => (
+                    <div key={group.round} className={groups.length > 1 && gi > 0 ? 'pt-2 border-t border-dashed border-white/20' : ''}>
+                    {groups.length > 1 && (
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-white/70">Round {group.round}</span>
+                        {group.items.some((i: any) => !i.kot_printed_at) && group.round > 1 && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500 text-black">NEW</span>
+                        )}
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                    {group.items.map((item: any, idx: number) => {
                       const isDone = item.status === 'DONE'
                       return (
                         <div key={item.id || idx} className={`flex items-start gap-2 transition-opacity ${isDone ? 'opacity-50' : ''}`}>
@@ -451,6 +478,9 @@ const Kitchen: React.FC = () => {
                         </div>
                       )
                     })}
+                    </div>
+                    </div>
+                    ))}
                     {order.special_instructions && (
                       <div className="mt-2 p-2 bg-white/5 rounded-lg text-xs text-gray-300">
                         📋 {order.special_instructions}
@@ -493,7 +523,8 @@ const Kitchen: React.FC = () => {
                         onClick={() => {
                           const unprinted = items.filter((it: any) => !it.kot_printed_at)
                           const toPrint = unprinted.length > 0 ? unprinted : items
-                          printKOT(order, toPrint)
+                          // One ticket per round (each opens its own print window)
+                          groupByRound(toPrint as any[]).forEach((g) => printKOT(order, g.items as any, 'Kitchen', g.round))
                           if (unprinted.length > 0) {
                             api.post(`/orders/${order.id}/kot-printed`, { item_ids: unprinted.map((it: any) => it.id) }).catch(() => {})
                           }

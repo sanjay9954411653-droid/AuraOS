@@ -58,7 +58,7 @@ export interface KOTOrder {
 }
 
 /** Builds the raw bytes for one Kitchen Order Ticket. 42 chars fits an 80mm printer. */
-export function buildKOTBytes(order: KOTOrder | Order, items: OrderItem[], restaurantName = 'Kitchen'): Uint8Array {
+export function buildKOTBytes(order: KOTOrder | Order, items: OrderItem[], restaurantName = 'Kitchen', round?: number): Uint8Array {
   const W = 42
   const center = (s: string) => bytes(ESC, 0x61, 1, s + '\n')
   const left = (s: string) => bytes(ESC, 0x61, 0, s + '\n')
@@ -78,6 +78,12 @@ export function buildKOTBytes(order: KOTOrder | Order, items: OrderItem[], resta
   const tableLabel = order.table?.table_number ? `TABLE ${order.table.table_number}` : ascii(order.order_type || '')
   out.push(...center(`${tableLabel}  ·  ${ascii(order.order_source || '')}`))
   if (order.created_at) out.push(...center(new Date(order.created_at).toLocaleString('en-IN')))
+  if (round && round > 1) {
+    out.push(...bold(true), ...big(true))
+    out.push(...center(`ROUND ${round}`))
+    out.push(...big(false), ...bold(false))
+    out.push(...center('ADD-ON ITEMS ONLY'))
+  }
   out.push(...left(line(W)))
 
   for (const item of items) {
@@ -223,6 +229,6 @@ export async function printRaw(data: Uint8Array): Promise<void> {
 }
 
 /** Convenience: build and print a KOT in one call. */
-export async function printKOTRaw(order: KOTOrder | Order, items: OrderItem[], restaurantName?: string): Promise<void> {
-  await printRaw(buildKOTBytes(order, items, restaurantName))
+export async function printKOTRaw(order: KOTOrder | Order, items: OrderItem[], restaurantName?: string, round?: number): Promise<void> {
+  await printRaw(buildKOTBytes(order, items, restaurantName, round))
 }
