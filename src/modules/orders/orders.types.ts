@@ -27,6 +27,10 @@ export const UpdateOrderItemStatusSchema = z.object({
   status: z.enum(['PENDING', 'PREPARING', 'DONE']),
 });
 
+export const ServeOrderSchema = z.object({
+  round: z.number().int().positive().optional(),
+});
+
 export const MarkKotPrintedSchema = z.object({
   item_ids: z.array(z.string().uuid()).min(1, 'At least one item is required'),
 });
@@ -65,6 +69,7 @@ export interface OrderItem {
   status: 'PENDING' | 'PREPARING' | 'DONE';
    kot_printed_at?: Date | null;
   round: number;
+  served_at?: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -99,6 +104,7 @@ export interface UpdatedOrderItem {
   special_instructions?: string;
   status: 'PENDING' | 'PREPARING' | 'DONE';
   completed_at: Date | null;
+  round?: number;
   created_at: Date;
   updated_at: Date;
 }

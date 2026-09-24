@@ -52,11 +52,15 @@ export type OrderType   = 'DINE_IN' | 'PARCEL' | 'ONLINE'
 export type OrderSource = 'WAITER' | 'RECEPTION' | 'QR' | 'WHATSAPP' | 'ZOMATO'
 
 export interface OrderItem {
+  id?: string
   menu_item_id: string
   menu_item_name?: string
   quantity: number
   unit_price?: number
   special_instructions?: string
+  status?: 'PENDING' | 'PREPARING' | 'DONE'
+  round?: number
+  served_at?: string | null
 }
 
 export interface Order {

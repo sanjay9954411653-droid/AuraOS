@@ -12,6 +12,7 @@ import { create } from 'zustand'
 import { io, Socket } from 'socket.io-client'
 import toast from 'react-hot-toast'
 import { api } from '../api/client'
+import { useOrderStore } from './useOrderStore'
 
 export interface TableRequest {
   id: string
@@ -101,6 +102,7 @@ export const useTableRequestsStore = create<TableRequestsState>((set, get) => ({
       socket?.emit('join_restaurant', { restaurantId })
       // Catch up on anything raised while we were disconnected.
       get().fetchPending()
+      useOrderStore.getState().fetchOrders()
     })
 
     socket.on('disconnect', (reason) => {
@@ -152,6 +154,25 @@ export const useTableRequestsStore = create<TableRequestsState>((set, get) => ({
         `Table ${payload.table_number || ''} ${REQUEST_LABEL[payload.type as TableRequest['type']] || 'needs help'}`,
         { icon: payload.type === 'REQUEST_BILL' ? '🧾' : '🔔', duration: 8000 },
       )
+    })
+
+    // ── Orders: keep the Orders tab live, and alert when the kitchen finishes a round ──
+    let orderRefreshTimer: ReturnType<typeof setTimeout> | null = null
+    const refreshOrders = () => {
+      if (orderRefreshTimer) clearTimeout(orderRefreshTimer)
+      orderRefreshTimer = setTimeout(() => useOrderStore.getState().fetchOrders(), 300)
+    }
+    socket.on('ORDER_CREATED', refreshOrders)
+    socket.on('ORDER_UPDATED', refreshOrders)
+    socket.on('ORDER_COMPLETED', refreshOrders)
+    socket.on('ORDER_CANCELLED', refreshOrders)
+
+    socket.on('ROUND_READY', (payload: any) => {
+      refreshOrders()
+      if ('vibrate' in navigator) navigator.vibrate([300, 100, 300, 100, 300])
+      playAlertSound()
+      const where = payload.table_number ? `Table ${payload.table_number}` : `Order ${payload.order_number}`
+      toast(`${where} — order is ready to serve`, { icon: '🍽️', duration: 10000 })
     })
 
     socket.on('TABLE_REQUEST_RESOLVED', (payload: any) => {

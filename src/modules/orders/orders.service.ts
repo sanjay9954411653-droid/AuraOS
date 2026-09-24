@@ -150,6 +150,22 @@ export class OrdersService {
   }
   
   /**
+   * Waiter marks food as served. With `round`, only that round; otherwise everything finished.
+   * If the whole order is already READY, unfinished items are marked served too.
+   */
+  async serveOrder(orderId: string, restaurantId: string, round?: number): Promise<{ served: number; order: Order }> {
+    const order = await ordersRepository.findById(orderId);
+    if (!order || order.restaurant_id !== restaurantId) {
+      throw new NotFoundError('Order not found');
+    }
+    if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+      throw new BadRequestError('Order is already closed');
+    }
+    const served = await ordersRepository.markItemsServed(orderId, restaurantId, round, order.status === 'READY');
+    return { served, order };
+  }
+
+  /**
    * Mark a set of items as sent to the kitchen printer.
    */
   async markKotPrinted(orderId: string, restaurantId: string, itemIds: string[]): Promise<void> {
@@ -300,7 +316,7 @@ export class OrdersService {
     itemId: string,
     restaurantId: string,
     status: 'PENDING' | 'PREPARING' | 'DONE',
-  ): Promise<{ item: UpdatedOrderItem; orderAutoAdvanced: boolean; order?: Order }> {
+  ): Promise<{ item: UpdatedOrderItem; orderAutoAdvanced: boolean; order?: Order; roundReady?: { round: number; order_number: string; table_number: string | null } }> {
     // Verify order belongs to this restaurant
     const order = await ordersRepository.findById(orderId);
     if (!order || order.restaurant_id !== restaurantId) {
@@ -346,7 +362,16 @@ export class OrdersService {
       }
     }
 
-    return { item, orderAutoAdvanced, order: updatedOrder };
+    // Did this tap finish a whole round? If so the waiter needs to know it's ready to serve.
+    let roundReady: { round: number; order_number: string; table_number: string | null } | undefined;
+    if (status === 'DONE' && item.round) {
+      const info = await ordersRepository.getRoundReadyInfo(orderId, item.round);
+      if (info?.round_done) {
+        roundReady = { round: item.round, order_number: info.order_number, table_number: info.table_number };
+      }
+    }
+
+    return { item, orderAutoAdvanced, order: updatedOrder, roundReady };
   }
 }
 

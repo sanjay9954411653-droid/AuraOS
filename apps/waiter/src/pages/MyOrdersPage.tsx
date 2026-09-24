@@ -1,21 +1,22 @@
 /**
- * MyOrdersPage — shows today's active orders.
+ * MyOrdersPage — the waiter's view of today's active orders.
  *
- * READY orders appear in a dedicated "Awaiting Payment" section with a single
- * [Collect Payment] action. One tap opens an inline payment sheet.
- * After full payment the order moves to COMPLETED and disappears from the list.
- *
- * Kitchen stages (CREATED → ACCEPTED → PREPARING) still have the advance button.
+ * The waiter no longer moves orders through kitchen stages (that's the
+ * kitchen's job). Instead:
+ *   1. "Ready to serve"   — the kitchen finished a round; tap [Serve Order].
+ *   2. "Awaiting payment" — the whole order is ready; tap [Collect Payment].
+ *   3. "In kitchen"       — read-only progress, plus [Add] to send more items.
  */
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { PlusIcon, ArrowRightIcon, CurrencyDollarIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, CurrencyDollarIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import { useOrderStore } from '../store/useOrderStore'
 import { ordersApi, paymentsApi, PaymentMethod } from '../api/endpoints'
 import { formatDistanceToNow } from 'date-fns'
 import type { Order, OrderStatus } from '../types'
+import { getReadyRounds, isFullyServed, orderItemsOf } from '../lib/orderRounds'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n)
@@ -29,11 +30,11 @@ const STATUS_COLOR: Record<OrderStatus, string> = {
   CANCELLED: 'bg-red-100 text-red-700',
 }
 
-// Only kitchen stages get the advance button; READY is handled via payment
-const NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; label: string }>> = {
-  CREATED:   { next: 'ACCEPTED',  label: 'Accept' },
-  ACCEPTED:  { next: 'PREPARING', label: 'Start Prep' },
-  PREPARING: { next: 'READY',     label: 'Mark Ready' },
+// Friendly, read-only labels for what the kitchen is doing
+const KITCHEN_LABEL: Partial<Record<OrderStatus, string>> = {
+  CREATED:   'Sent to kitchen',
+  ACCEPTED:  'Accepted',
+  PREPARING: 'Preparing',
 }
 
 const PAYMENT_METHODS: PaymentMethod[] = ['CASH', 'CARD', 'UPI', 'ONLINE']
@@ -175,8 +176,9 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
 
 const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate()
-  const { orders, queue, isLoading, fetchOrders, updateStatus } = useOrderStore()
+  const { orders, queue, isLoading, fetchOrders, serve } = useOrderStore()
   const [payingOrder, setPayingOrder] = useState<Order | null>(null)
+  const [servingKey, setServingKey] = useState<string | null>(null)
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
@@ -184,15 +186,18 @@ const MyOrdersPage: React.FC = () => {
     (o) => ['CREATED', 'ACCEPTED', 'PREPARING'].includes(o.status)
   )
   const readyOrders = orders.filter((o) => o.status === 'READY')
+  const readyRounds = orders.flatMap((o) => getReadyRounds(o))
 
-  const handleAdvance = async (order: Order) => {
-    const action = NEXT_STATUS[order.status]
-    if (!action) return
+  const handleServe = async (order: Order, round: number, totalRounds: number) => {
+    const key = `${order.id}-${round}`
+    setServingKey(key)
     try {
-      await updateStatus(order.id, action.next)
-      toast.success(`Order ${action.next.toLowerCase()}`)
+      await serve(order.id, totalRounds > 1 ? round : undefined)
+      toast.success('Marked as served ✓')
     } catch {
-      toast.error('Failed to update order')
+      toast.error('Failed to mark as served')
+    } finally {
+      setServingKey(null)
     }
   }
 
@@ -245,17 +250,65 @@ const MyOrdersPage: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* Awaiting Payment section */}
-          {readyOrders.length > 0 && (
+          {/* 1. Ready to serve — one card per finished round */}
+          {readyRounds.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-semibold text-emerald-700 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Awaiting Payment ({readyOrders.length})
+                Ready to serve ({readyRounds.length})
+              </h2>
+              {readyRounds.map(({ order, round, totalRounds, items }) => {
+                const key = `${order.id}-${round}`
+                return (
+                  <div key={key} className="card p-4 space-y-3 border-l-4 border-l-emerald-400">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-gray-900">
+                          {order.table?.table_number ? `Table ${order.table.table_number}` : order.order_type}
+                          {totalRounds > 1 && (
+                            <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                              Round {round}
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500">{order.order_number}</p>
+                      </div>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLOR['READY']}`}>
+                        Ready
+                      </span>
+                    </div>
+                    <ul className="text-sm text-gray-700 space-y-0.5">
+                      {items.map((it, i) => (
+                        <li key={it.id || i}>
+                          <span className="font-semibold">{it.quantity}×</span> {it.menu_item_name || 'Item'}
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      onClick={() => handleServe(order, round, totalRounds)}
+                      disabled={servingKey === key}
+                      className="btn-primary w-full flex items-center justify-center gap-2 py-3 disabled:opacity-60"
+                    >
+                      <CheckCircleIcon className="w-5 h-5" />
+                      {servingKey === key ? 'Saving…' : 'Serve Order'}
+                    </button>
+                  </div>
+                )
+              })}
+            </section>
+          )}
+
+          {/* 2. Awaiting payment — whole order is ready */}
+          {readyOrders.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold text-indigo-700">
+                Awaiting payment ({readyOrders.length})
               </h2>
               {readyOrders.map((order) => {
-                const itemCount = (order.order_items || order.items || []).length
+                const itemCount = orderItemsOf(order).length
+                const served = isFullyServed(order)
                 return (
-                  <div key={order.id} className="card p-4 space-y-3 border-l-4 border-l-emerald-400">
+                  <div key={order.id} className="card p-4 space-y-3 border-l-4 border-l-indigo-400">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-bold text-gray-900">{order.order_number}</p>
@@ -265,36 +318,46 @@ const MyOrdersPage: React.FC = () => {
                           {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
                         </p>
                       </div>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLOR['READY']}`}>
-                        Ready to pay
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${served ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {served ? 'Served ✓' : 'Not served yet'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-500">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
                       <span className="font-bold text-gray-900 text-lg">{formatCurrency(Number(order.total_amount))}</span>
                     </div>
-                    <button
-                      onClick={() => setPayingOrder(order)}
-                      className="btn-primary w-full flex items-center justify-center gap-2 py-3"
-                    >
-                      <CurrencyDollarIcon className="w-5 h-5" />
-                      Collect Payment
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setPayingOrder(order)}
+                        className="btn-primary flex-1 flex items-center justify-center gap-2 py-3"
+                      >
+                        <CurrencyDollarIcon className="w-5 h-5" />
+                        Collect Payment
+                      </button>
+                      <button
+                        onClick={() => navigate(`/order/add/${order.id}?table=${order.table?.table_number || ''}`)}
+                        className="btn-secondary flex items-center gap-1.5 py-3 px-3 text-sm"
+                        title="Add more items"
+                      >
+                        <PlusIcon className="w-4 h-4" />
+                        Add
+                      </button>
+                    </div>
                   </div>
                 )
               })}
             </section>
           )}
 
-          {/* Active kitchen orders */}
+          {/* 3. In kitchen — read-only progress */}
           {kitchenOrders.length > 0 && (
             <section className="space-y-3">
-              {readyOrders.length > 0 && (
-                <h2 className="text-sm font-semibold text-gray-500">In Kitchen ({kitchenOrders.length})</h2>
+              {(readyRounds.length > 0 || readyOrders.length > 0) && (
+                <h2 className="text-sm font-semibold text-gray-500">In kitchen ({kitchenOrders.length})</h2>
               )}
               {kitchenOrders.map((order) => {
-                const action = NEXT_STATUS[order.status]
-                const itemCount = (order.order_items || order.items || []).length
+                const items = orderItemsOf(order)
+                const doneCount = items.filter((i) => i.status === 'DONE').length
                 return (
                   <div key={order.id} className="card p-4 space-y-3">
                     <div className="flex items-center justify-between">
@@ -307,32 +370,24 @@ const MyOrdersPage: React.FC = () => {
                         </p>
                       </div>
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLOR[order.status]}`}>
-                        {order.status}
+                        {KITCHEN_LABEL[order.status] || order.status}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+                      <span className="text-gray-500">
+                        {items.length} item{items.length !== 1 ? 's' : ''}
+                        {doneCount > 0 && ` · ${doneCount} ready`}
+                      </span>
                       <span className="font-bold text-gray-900">{formatCurrency(Number(order.total_amount))}</span>
                     </div>
-                    <div className="flex gap-2">
-                      {action && (
-                        <button
-                          onClick={() => handleAdvance(order)}
-                          className="btn-primary flex-1 flex items-center justify-center gap-2 py-2.5 text-sm"
-                        >
-                          {action.label}
-                          <ArrowRightIcon className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => navigate(`/order/add/${order.id}?table=${order.table?.table_number || ''}`)}
-                        className="btn-secondary flex items-center gap-1.5 py-2.5 px-3 text-sm"
-                        title="Add more items"
-                      >
-                        <PlusIcon className="w-4 h-4" />
-                        Add
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => navigate(`/order/add/${order.id}?table=${order.table?.table_number || ''}`)}
+                      className="btn-secondary w-full flex items-center justify-center gap-1.5 py-2.5 text-sm"
+                      title="Add more items"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      Add items
+                    </button>
                   </div>
                 )
               })}

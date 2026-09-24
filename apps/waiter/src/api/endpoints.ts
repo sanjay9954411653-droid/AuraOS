@@ -70,6 +70,10 @@ export const ordersApi = {
   updateStatus: (id: string, status: string) =>
     api.patch<{ success: boolean; data: Order }>(`/orders/${id}`, { status }),
 
+  // Waiter confirms food was served (optionally only one round)
+  serve: (id: string, round?: number) =>
+    api.post(`/orders/${id}/serve`, round ? { round } : {}),
+
   addItems: (id: string, items: CartLine[]) =>
     api.post(`/orders/${id}/items`, {
       items: items.map((i) => ({

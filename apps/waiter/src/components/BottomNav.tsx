@@ -10,11 +10,13 @@ import {
   UserCircleIcon as UserCircleSolid,
 } from '@heroicons/react/24/solid'
 import { useOrderStore } from '../store/useOrderStore'
+import { getReadyRounds } from '../lib/orderRounds'
 
 const BottomNav: React.FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
-  const { queue } = useOrderStore()
+  const { queue, orders } = useOrderStore()
+  const readyToServe = orders.reduce((n, o) => n + getReadyRounds(o).length, 0)
 
   const tabs = [
     {
@@ -28,7 +30,8 @@ const BottomNav: React.FC = () => {
       path: '/orders',
       icon: ClipboardDocumentListIcon,
       activeIcon: ClipboardSolid,
-      badge: queue.length > 0 ? queue.length : undefined,
+      badge: readyToServe + queue.length > 0 ? readyToServe + queue.length : undefined,
+      badgeColor: readyToServe > 0 ? 'bg-emerald-500' : 'bg-amber-500',
     },
     {
       label: 'Profile',
@@ -54,7 +57,7 @@ const BottomNav: React.FC = () => {
             <Icon className="w-6 h-6" />
             <span className="text-xs font-medium">{tab.label}</span>
             {tab.badge && (
-              <span className="absolute top-2 right-1/4 w-4 h-4 bg-amber-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+              <span className={`absolute top-2 right-1/4 w-4 h-4 ${(tab as any).badgeColor || 'bg-amber-500'} text-white text-xs rounded-full flex items-center justify-center font-bold`}>
                 {tab.badge}
               </span>
             )}

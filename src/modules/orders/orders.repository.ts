@@ -119,6 +119,7 @@ export class OrdersRepository {
               'status', oi.status,
               'kot_printed_at', oi.kot_printed_at,
               'round', oi.round,
+              'served_at', oi.served_at,
               'created_at', oi.created_at,
               'modifiers', (
                 SELECT COALESCE(
@@ -342,6 +343,7 @@ export class OrdersRepository {
             'status', oi.status,
             'kot_printed_at', oi.kot_printed_at,
             'round', oi.round,
+              'served_at', oi.served_at,
               'created_at', oi.created_at
           )
         ) FILTER (WHERE oi.id IS NOT NULL),
@@ -448,6 +450,7 @@ export class OrdersRepository {
               'menu_item_id', oi.menu_item_id, 'menu_item_name', mi.name, 'quantity', oi.quantity,
               'unit_price', oi.unit_price, 'special_instructions', oi.special_instructions,
               'status', oi.status, 'kot_printed_at', oi.kot_printed_at, 'round', oi.round,
+              'served_at', oi.served_at,
               'created_at', oi.created_at
             )
           ) FILTER (WHERE oi.id IS NOT NULL), '[]'
@@ -527,12 +530,65 @@ export class OrdersRepository {
     const completedAt = status === 'DONE' ? new Date() : null;
     const result = await query(
       `UPDATE order_items
-       SET status = $1, completed_at = $2, updated_at = CURRENT_TIMESTAMP
+       SET status = $1, completed_at = $2, updated_at = CURRENT_TIMESTAMP,
+           served_at = CASE WHEN $1 = 'DONE' THEN served_at ELSE NULL END
        WHERE id = $3 AND order_id = $4
-       RETURNING id, order_id, menu_item_id, quantity, unit_price, special_instructions, status, completed_at, created_at, updated_at`,
+       RETURNING id, order_id, menu_item_id, quantity, unit_price, special_instructions, status, completed_at, round, created_at, updated_at`,
       [status, completedAt, itemId, orderId],
     );
     return result.rows[0] || null;
+  }
+
+  /**
+   * Info needed to tell the waiter a round is ready: order/table labels and
+   * whether every item of that round is now DONE.
+   */
+  async getRoundReadyInfo(
+    orderId: string,
+    round: number,
+  ): Promise<{ order_number: string; table_number: string | null; round_done: boolean } | null> {
+    const result = await query(
+      `SELECT o.order_number, rt.table_number,
+              (SELECT COUNT(*) FILTER (WHERE oi.status != 'DONE') FROM order_items oi
+                WHERE oi.order_id = o.id AND oi.round = $2) AS pending_count
+       FROM orders o
+       LEFT JOIN restaurant_tables rt ON rt.id = o.table_id
+       WHERE o.id = $1`,
+      [orderId, round],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      order_number: row.order_number,
+      table_number: row.table_number ?? null,
+      round_done: parseInt(row.pending_count, 10) === 0,
+    };
+  }
+
+  /**
+   * Mark items as served. Only finished (DONE) items are marked unless
+   * `includeUnfinished` is set (used when the order was moved to READY as a whole).
+   * Optionally limited to one round. Returns how many rows were marked.
+   */
+  async markItemsServed(
+    orderId: string,
+    restaurantId: string,
+    round: number | undefined,
+    includeUnfinished: boolean,
+  ): Promise<number> {
+    const params: any[] = [orderId, restaurantId];
+    let extra = '';
+    if (round !== undefined) {
+      params.push(round);
+      extra += ` AND round = $${params.length}`;
+    }
+    if (!includeUnfinished) extra += ` AND status = 'DONE'`;
+    const result = await query(
+      `UPDATE order_items SET served_at = CURRENT_TIMESTAMP
+       WHERE order_id = $1 AND restaurant_id = $2 AND served_at IS NULL${extra}`,
+      params,
+    );
+    return result.rowCount ?? 0;
   }
 
   /**

@@ -11,6 +11,7 @@ export enum SocketEvent {
   ORDER_DELETED = 'ORDER_DELETED',
   ORDER_COMPLETED = 'ORDER_COMPLETED',
   ORDER_CANCELLED = 'ORDER_CANCELLED',
+  ROUND_READY = 'ROUND_READY',       // kitchen finished a round -> waiter should serve it
   ORDER_DELAYED = 'ORDER_DELAYED',   // fired by background job when order exceeds threshold
 
   // Reservation events
@@ -47,6 +48,14 @@ export interface OrderEventPayload {
   total_amount?: number;
   table_id?: string | null;
   order_number?: string; // when set, update is also pushed to the public order room
+}
+
+export interface RoundReadyPayload {
+  order_id: string;
+  restaurant_id: string;
+  order_number: string;
+  table_number?: string | null;
+  round: number;
 }
 
 export interface DelayedOrderPayload {
@@ -122,6 +131,13 @@ export class EventBroadcaster {
     if (payload.order_number) {
       this.io.to(`order:${payload.order_number}`).emit(SocketEvent.ORDER_UPDATED, payload);
     }
+  }
+
+  /**
+   * Kitchen finished a round of an order — tell the waiters it's ready to serve.
+   */
+  broadcastRoundReady(payload: RoundReadyPayload): void {
+    this.io.to(`restaurant:${payload.restaurant_id}`).emit(SocketEvent.ROUND_READY, payload);
   }
 
   /**

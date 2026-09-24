@@ -8,12 +8,14 @@ import {
   AddOrderItemsRequestSchema,
   UpdateOrderItemStatusSchema,
   MarkKotPrintedSchema,
+  ServeOrderSchema,
 } from './orders.types';
 import { successResponse } from '@/shared/utils/responseHandler';
 import { parsePagination, paginatedResponse } from '@/shared/utils/pagination';
 import { AuthenticatedRequest } from '@/shared/middleware/authenticate';
 import { eventBroadcaster } from '@/shared/socket/eventBroadcaster';
 import { clearDelayAlert } from '@/shared/jobs/delayDetector';
+import { pushService } from '@/modules/push/push.service';
 
 export class OrdersController {
   async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -139,6 +141,33 @@ export class OrdersController {
     }
   }
 
+  /**
+   * POST /orders/:id/serve
+   * Waiter confirms the food was served (optionally only one round).
+   */
+  async serve(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const restaurantId = req.user?.restaurantId;
+      if (!restaurantId) throw new Error('User not associated with a restaurant');
+
+      const { id } = req.params;
+      const { round } = ServeOrderSchema.parse(req.body || {});
+      const { served, order } = await ordersService.serveOrder(id, restaurantId, round);
+
+      eventBroadcaster?.broadcastOrderUpdated({
+        order_id: order.id,
+        restaurant_id: restaurantId,
+        status: order.status,
+        total_amount: Number(order.total_amount),
+        table_id: order.table_id,
+      });
+
+      res.status(200).json(successResponse({ served }, { message: 'Marked as served' }));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const restaurantId = req.user?.restaurantId;
@@ -234,6 +263,26 @@ export class OrdersController {
           total_amount: Number(result.order.total_amount),
           table_id: result.order.table_id,
         });
+      }
+
+      // Kitchen finished a whole round -> alert the waiters (live + push for locked screens)
+      if (result.roundReady) {
+        const label = result.roundReady.table_number ? `Table ${result.roundReady.table_number}` : `Order ${result.roundReady.order_number}`;
+        eventBroadcaster?.broadcastRoundReady({
+          order_id: orderId,
+          restaurant_id: restaurantId,
+          order_number: result.roundReady.order_number,
+          table_number: result.roundReady.table_number,
+          round: result.roundReady.round,
+        });
+        pushService
+          .sendToRestaurant(restaurantId, {
+            title: `${label} — order ready`,
+            body: `Round ${result.roundReady.round} of ${result.roundReady.order_number} is ready to serve`,
+            tag: `ready-${orderId}-${result.roundReady.round}`,
+            data: { url: '/orders' },
+          })
+          .catch(() => {});
       }
 
       res.status(200).json(

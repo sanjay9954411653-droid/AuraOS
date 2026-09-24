@@ -31,6 +31,7 @@ interface OrderState {
   submitOrder:  (payload: Omit<CreateOrderPayload, 'idempotency_key'>) => Promise<Order | null>
   drainQueue:   () => Promise<void>
   updateStatus: (id: string, status: string) => Promise<void>
+  serve:        (id: string, round?: number) => Promise<void>
 }
 
 export const useOrderStore = create<OrderState>()(
@@ -41,7 +42,8 @@ export const useOrderStore = create<OrderState>()(
       isLoading: false,
 
       fetchOrders: async () => {
-        set({ isLoading: true })
+        // Only show the spinner on first load; live refreshes update silently
+        if (get().orders.length === 0) set({ isLoading: true })
         try {
           const res = await ordersApi.list({ limit: 50 })
             set({ orders: res.data.data?.items || [], isLoading: false })
@@ -104,6 +106,11 @@ export const useOrderStore = create<OrderState>()(
             }))
           }
         }
+      },
+
+      serve: async (id, round) => {
+        await ordersApi.serve(id, round)
+        await get().fetchOrders()
       },
 
       updateStatus: async (id, status) => {
