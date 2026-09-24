@@ -59,6 +59,8 @@ const emptyProfileFields = {
   facebook: '',
   instagram: '',
   twitter: '',
+  google_review: '',
+  youtube: '',
   website_published: false,
 }
 
@@ -96,6 +98,8 @@ const Branding: React.FC = () => {
           facebook: p.social_links?.facebook || '',
           instagram: p.social_links?.instagram || '',
           twitter: p.social_links?.twitter || '',
+          google_review: p.social_links?.google_review || '',
+          youtube: p.social_links?.youtube || '',
           website_published: !!p.website_published,
         })
         setTheme(themeRes.data.data)
@@ -125,9 +129,11 @@ const Branding: React.FC = () => {
         whatsapp: fields.whatsapp || null,
         public_email: fields.public_email || null,
         social_links: {
+          google_review: fields.google_review,
           facebook: fields.facebook,
           instagram: fields.instagram,
           twitter: fields.twitter,
+          youtube: fields.youtube,
         },
         website_published: fields.website_published,
       })
@@ -261,7 +267,17 @@ const Branding: React.FC = () => {
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Google Review</label>
+              <input
+                type="text"
+                value={fields.google_review}
+                onChange={(e) => updateField('google_review', e.target.value)}
+                placeholder="https://search.google.com/local/writereview?..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Facebook</label>
               <input
@@ -279,6 +295,16 @@ const Branding: React.FC = () => {
                 value={fields.instagram}
                 onChange={(e) => updateField('instagram', e.target.value)}
                 placeholder="https://instagram.com/..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">YouTube</label>
+              <input
+                type="text"
+                value={fields.youtube}
+                onChange={(e) => updateField('youtube', e.target.value)}
+                placeholder="https://youtube.com/@..."
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
             </div>
