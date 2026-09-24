@@ -366,24 +366,37 @@ const Kitchen: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-            {sorted.map((order) => {
-              const items = order.order_items || order.items || []
+            {sorted.flatMap((order) => {
+              // Every round of an order becomes its own card (same order number,
+              // only that round's items). Order status/actions stay shared.
+              const allItems = (order.order_items || order.items || []) as any[]
+              const rounds = groupByRound(allItems)
+              return rounds.map((g) => ({ order, round: g.round, items: g.items, totalRounds: rounds.length }))
+            }).map(({ order, round, items, totalRounds }) => {
               const isDelayed = delayedOrderIds.has(order.id)
               // Delayed orders get a red border regardless of status
               const cardColor = isDelayed
                 ? 'border-red-500 bg-red-950'
                 : (CARD_COLORS[order.status] || 'border-gray-600 bg-gray-900')
-              const elapsedColor = getElapsedColor(order.created_at)
+              const roundStartedAt: string = (items as any[]).map((i) => i.created_at).filter(Boolean).sort()[0] || order.created_at
+              const elapsedColor = getElapsedColor(roundStartedAt)
 
               return (
                 <div
-                  key={order.id}
+                  key={`${order.id}-${round}`}
                   className={`rounded-xl border-2 ${cardColor} flex flex-col min-h-[280px] overflow-hidden`}
                 >
                   {/* Card header */}
                   <div className="px-4 py-3 border-b border-white/10">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xl font-bold text-white">{order.order_number}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-xl font-bold text-white">{order.order_number}</span>
+                        {totalRounds > 1 && (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${round > 1 ? 'bg-amber-500 text-black' : 'bg-white/15 text-white'}`}>
+                            ROUND {round}
+                          </span>
+                        )}
+                      </span>
                       <div className="flex items-center gap-1.5">
                         {isDelayed && (
                           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500 text-white animate-pulse">
@@ -408,7 +421,7 @@ const Kitchen: React.FC = () => {
                     <div className="flex items-center gap-3 text-xs">
                       <span className={`flex items-center gap-1 font-mono font-bold ${elapsedColor}`}>
                         <ClockIcon className="w-3.5 h-3.5" />
-                        {formatElapsed(order.created_at)}
+                        {formatElapsed(roundStartedAt)}
                       </span>
                       {order.table?.table_number && (
                         <span className="text-gray-400">Table {order.table.table_number}</span>
@@ -430,18 +443,7 @@ const Kitchen: React.FC = () => {
 
                   {/* Items */}
                   <div className="flex-1 px-4 py-3 space-y-2 overflow-y-auto scrollbar-thin">
-                    {groupByRound(items as any[]).map((group, gi, groups) => (
-                    <div key={group.round} className={groups.length > 1 && gi > 0 ? 'pt-2 border-t border-dashed border-white/20' : ''}>
-                    {groups.length > 1 && (
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-[11px] font-bold uppercase tracking-wide text-white/70">Round {group.round}</span>
-                        {group.items.some((i: any) => !i.kot_printed_at) && group.round > 1 && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500 text-black">NEW</span>
-                        )}
-                      </div>
-                    )}
-                    <div className="space-y-2">
-                    {group.items.map((item: any, idx: number) => {
+                    {items.map((item: any, idx: number) => {
                       const isDone = item.status === 'DONE'
                       return (
                         <div key={item.id || idx} className={`flex items-start gap-2 transition-opacity ${isDone ? 'opacity-50' : ''}`}>
@@ -478,9 +480,6 @@ const Kitchen: React.FC = () => {
                         </div>
                       )
                     })}
-                    </div>
-                    </div>
-                    ))}
                     {order.special_instructions && (
                       <div className="mt-2 p-2 bg-white/5 rounded-lg text-xs text-gray-300">
                         📋 {order.special_instructions}
@@ -535,13 +534,16 @@ const Kitchen: React.FC = () => {
                         <PrinterIcon className="w-3.5 h-3.5" />
                         KOT
                       </button>
-                      <button
-                        onClick={() => updateStatus(order.id, 'CANCELLED')}
-                        disabled={busy}
-                        className="flex-1 py-1.5 bg-transparent border border-red-500/50 hover:bg-red-500/20 text-red-400 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Cancel
-                      </button>
+                      {/* Cancel applies to the whole order, so only the first card offers it */}
+                      {round === 1 && (
+                        <button
+                          onClick={() => updateStatus(order.id, 'CANCELLED')}
+                          disabled={busy}
+                          className="flex-1 py-1.5 bg-transparent border border-red-500/50 hover:bg-red-500/20 text-red-400 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

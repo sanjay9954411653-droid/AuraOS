@@ -119,6 +119,7 @@ export class OrdersRepository {
               'status', oi.status,
               'kot_printed_at', oi.kot_printed_at,
               'round', oi.round,
+              'created_at', oi.created_at,
               'modifiers', (
                 SELECT COALESCE(
                   json_agg(
@@ -237,6 +238,14 @@ export class OrdersRepository {
         );
       }
 
+      // A new round means the kitchen has work again: if the order was already
+      // READY (waiting for the waiter/payment), send it back to ACCEPTED so it
+      // reappears on the kitchen display.
+      await client.query(
+        `UPDATE orders SET status = 'ACCEPTED', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'READY'`,
+        [orderId],
+      );
+
       // Recompute total from all line items
       await client.query(
         `UPDATE orders
@@ -332,7 +341,8 @@ export class OrdersRepository {
             'special_instructions', oi.special_instructions,
             'status', oi.status,
             'kot_printed_at', oi.kot_printed_at,
-            'round', oi.round
+            'round', oi.round,
+              'created_at', oi.created_at
           )
         ) FILTER (WHERE oi.id IS NOT NULL),
         '[]'
@@ -437,7 +447,8 @@ export class OrdersRepository {
               'id', oi.id, 'order_id', oi.order_id, 'restaurant_id', oi.restaurant_id,
               'menu_item_id', oi.menu_item_id, 'menu_item_name', mi.name, 'quantity', oi.quantity,
               'unit_price', oi.unit_price, 'special_instructions', oi.special_instructions,
-              'status', oi.status, 'kot_printed_at', oi.kot_printed_at, 'round', oi.round
+              'status', oi.status, 'kot_printed_at', oi.kot_printed_at, 'round', oi.round,
+              'created_at', oi.created_at
             )
           ) FILTER (WHERE oi.id IS NOT NULL), '[]'
         ) AS order_items
