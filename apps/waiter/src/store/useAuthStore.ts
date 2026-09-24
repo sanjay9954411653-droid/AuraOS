@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import axios from 'axios'
 import { authApi } from '../api/endpoints'
 import { setToken, getRefreshToken } from '../api/client'
 import type { User } from '../types'
@@ -49,6 +50,13 @@ export const useAuthStore = create<AuthState>()(
       // Runs once on app start. A saved access token may already be expired
       // (they last 15 minutes) — that's expected, not a failure: the api
       // client's 401 handler will use the refresh token to get a fresh one.
+      //
+      // Only a genuine auth rejection (both the access token AND the refresh
+      // token are invalid — surfaced as a 401 here, since the api client's
+      // own interceptor already tried refreshing first) should sign the
+      // waiter out. A network blip, a slow/cold-starting backend, or a
+      // timeout must NOT clear a perfectly good session — that was
+      // logging waiters out just for reopening the app with a shaky signal.
       restoreSession: async () => {
         const { token } = get()
         if (!token && !getRefreshToken()) return
@@ -58,9 +66,16 @@ export const useAuthStore = create<AuthState>()(
           const res = await authApi.me()
           const user = res.data.data
           set({ user: { ...user, restaurantId: user.restaurant_id }, isLoading: false })
-        } catch {
-          setToken(null, null)
-          set({ user: null, token: null, isLoading: false })
+        } catch (err) {
+          const status = axios.isAxiosError(err) ? err.response?.status : undefined
+          if (status === 401 || status === 403) {
+            setToken(null, null)
+            set({ user: null, token: null, isLoading: false })
+          } else {
+            // Transient failure — keep the existing session and stop
+            // loading; the next successful request will pick it back up.
+            set({ isLoading: false })
+          }
         }
       },
     }),
