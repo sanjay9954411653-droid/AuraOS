@@ -11,6 +11,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
+        // Pulls push-sw.js's 'push' / 'notificationclick' handlers into the
+        // generated service worker. Without this, push-sw.js just sits in
+        // public/ unused and OS-level notifications never show, even though
+        // the subscription + server-side send both work fine.
+        importScripts: ['push-sw.js'],
         // Make a newly-deployed build take over any tab that's already open
         // immediately, instead of waiting for the next full reload. Without
         // this, a waiter who has the app open in the background can be stuck
