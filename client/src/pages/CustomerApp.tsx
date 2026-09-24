@@ -61,7 +61,7 @@ const matchesDiet = (diet: DietFilter, isVeg: boolean) =>
 interface ModifierOption {
   id: string
   name: string
-  price_adjustment: number
+  price_adjustment: number8
   sort_order: number
 }
 
@@ -559,7 +559,7 @@ const CustomerApp: React.FC = () => {
       saveCustomerOrder(slug, {
         order_number: data.order_number,
         total_amount: Number(data.total_amount),
-        items_count: Number(data.items_count) || cart.reduce((n, c) => n + c.quantity, 0),
+        items_count: cart.reduce((n, c) => n + c.quantity, 0),
         payment_method: data.payment_method || paymentMethod,
         table_number: qrMode === 'restaurant' ? (tableNumber || tables.find((t) => t.id === tableId)?.table_number) : undefined,
         placed_at: new Date().toISOString(),
