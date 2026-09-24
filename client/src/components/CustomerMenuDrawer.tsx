@@ -364,7 +364,64 @@ function OrdersPanel({
                     </span>
                     <span className="font-bold text-[color:var(--accent)]">{formatCurrency(withGst(o.total_amount))}</span>
                   </div>
+                 {(o.items && o.items.length > 0) && (
+  <details className="mt-3 border-t border-gray-100 pt-3">
+    <summary className="cursor-pointer list-none flex items-center justify-between text-sm font-semibold text-[color:var(--accent)]">
+      <span>View order details</span>
+      <span className="text-xs text-gray-400">
+        {o.items.length} {o.items.length === 1 ? 'item' : 'items'}
+      </span>
+    </summary>
 
+    <div className="mt-3 space-y-3">
+      {o.items.map((item, itemIndex) => (
+        <div
+          key={`${o.order_number}-${item.menu_item_id}-${itemIndex}`}
+          className="flex items-start justify-between gap-3 bg-gray-50 rounded-xl p-3"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-800">
+              {item.name}
+            </p>
+
+            {item.modifiers &&
+              item.modifiers.length > 0 && (
+                <div className="mt-1 space-y-0.5">
+                  {item.modifiers.map((modifier, modifierIndex) => (
+                    <p
+                      key={`${modifier.option_id}-${modifierIndex}`}
+                      className="text-xs text-gray-500"
+                    >
+                      {modifier.group_name}: {modifier.option_name}
+                      {modifier.price_adjustment > 0
+                        ? ` (+${formatCurrency(
+                            modifier.price_adjustment
+                          )})`
+                        : ''}
+                    </p>
+                  ))}
+                </div>
+              )}
+          </div>
+
+          <span className="shrink-0 text-sm font-bold text-gray-700">
+            × {item.quantity}
+          </span>
+        </div>
+      ))}
+    </div>
+
+    <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-sm">
+      <span className="text-gray-500">
+        Payment
+      </span>
+
+      <span className="font-semibold text-gray-800">
+        {o.payment_method || 'Not specified'}
+      </span>
+    </div>
+  </details>
+)}
                   {(canRate || canReorder) && (
                     <div className="mt-3 pt-3 border-t border-gray-100">
                       <div className="flex items-center justify-between gap-3">
