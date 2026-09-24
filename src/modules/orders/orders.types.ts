@@ -63,7 +63,8 @@ export interface OrderItem {
   unit_price: number;
   special_instructions?: string;
   status: 'PENDING' | 'PREPARING' | 'DONE';
-  kot_printed_at?: Date | null;
+   kot_printed_at?: Date | null;
+  round: number;
   created_at: Date;
   updated_at: Date;
 }
