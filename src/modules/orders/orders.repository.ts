@@ -50,9 +50,10 @@ export class OrdersRepository {
       const placeholders: string[] = [];
       let paramIndex = 1;
 
+      // A brand-new order is always "round 1" — the first ticket that goes to the kitchen.
       items.forEach((item) => {
         placeholders.push(
-          `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`,
+          `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, 1)`,
         );
         itemValues.push(
           order.id,
@@ -66,9 +67,9 @@ export class OrdersRepository {
       });
 
       const itemsResult = await client.query(
-        `INSERT INTO order_items (order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status)
+        `INSERT INTO order_items (order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status, round)
          VALUES ${placeholders.join(", ")}
-         RETURNING id, order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status, created_at, updated_at`,
+         RETURNING id, order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status, round, created_at, updated_at`,
         itemValues,
       );
 
@@ -116,6 +117,8 @@ export class OrdersRepository {
               'unit_price', oi.unit_price,
               'special_instructions', oi.special_instructions,
               'status', oi.status,
+              'kot_printed_at', oi.kot_printed_at,
+              'round', oi.round,
               'modifiers', (
                 SELECT COALESCE(
                   json_agg(
@@ -179,8 +182,12 @@ export class OrdersRepository {
 
   /**
    * Add items to an existing order inside a transaction and recompute the total.
-   * If an identical line (same menu_item + same instructions) already exists,
-   * its quantity is incremented instead of inserting a duplicate row.
+   *
+   * Every call to this function is its own "round" — a distinct trip to the
+   * kitchen. Items are always inserted as new rows tagged with the next round
+   * number (never merged into an earlier round's line), so each round stays
+   * visually and physically separate (its own KOT), even though they all
+   * belong to the same order/bill until payment is collected.
    */
   async addItemsToOrder(
     orderId: string,
@@ -206,40 +213,28 @@ export class OrdersRepository {
         [orderId],
       );
 
-      for (const item of items) {
-        // Try to merge with an existing pending line for the same item + instructions
-        const existing = await client.query(
-          `SELECT id, quantity FROM order_items
-           WHERE order_id = $1
-             AND menu_item_id = $2
-             AND COALESCE(special_instructions, '') = COALESCE($3, '')
-             AND status = 'PENDING'
-           LIMIT 1`,
-          [orderId, item.menu_item_id, item.special_instructions],
-        );
+      // Work out the next round number for this order (1 if somehow none exist yet).
+      const roundResult = await client.query(
+        `SELECT COALESCE(MAX(round), 0) + 1 AS next_round FROM order_items WHERE order_id = $1`,
+        [orderId],
+      );
+      const nextRound: number = roundResult.rows[0].next_round;
 
-        if (existing.rows.length > 0) {
-          await client.query(
-            `UPDATE order_items
-             SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP
-             WHERE id = $2`,
-            [item.quantity, existing.rows[0].id],
-          );
-        } else {
-          await client.query(
-            `INSERT INTO order_items (order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [
-              orderId,
-              restaurantId,
-              item.menu_item_id,
-              item.quantity,
-              item.unit_price,
-              item.special_instructions,
-              item.status,
-            ],
-          );
-        }
+      for (const item of items) {
+        await client.query(
+          `INSERT INTO order_items (order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status, round)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            orderId,
+            restaurantId,
+            item.menu_item_id,
+            item.quantity,
+            item.unit_price,
+            item.special_instructions,
+            item.status,
+            nextRound,
+          ],
+        );
       }
 
       // Recompute total from all line items
@@ -261,7 +256,7 @@ export class OrdersRepository {
       );
 
       const itemsResult = await client.query(
-        `SELECT id, order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status, created_at, updated_at
+        `SELECT id, order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status, kot_printed_at, round, created_at, updated_at
          FROM order_items WHERE order_id = $1 ORDER BY created_at ASC`,
         [orderId],
       );
@@ -278,7 +273,7 @@ export class OrdersRepository {
 
   async findItemsByOrderId(orderId: string): Promise<OrderItem[]> {
     const result = await query(
-      "SELECT id, order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status, kot_printed_at, created_at, updated_at FROM order_items WHERE order_id = $1 ORDER BY created_at ASC",
+      "SELECT id, order_id, restaurant_id, menu_item_id, quantity, unit_price, special_instructions, status, kot_printed_at, round, created_at, updated_at FROM order_items WHERE order_id = $1 ORDER BY created_at ASC",
       [orderId],
     );
     return result.rows;
@@ -335,7 +330,9 @@ export class OrdersRepository {
             'quantity', oi.quantity,
             'unit_price', oi.unit_price,
             'special_instructions', oi.special_instructions,
-            'status', oi.status
+            'status', oi.status,
+            'kot_printed_at', oi.kot_printed_at,
+            'round', oi.round
           )
         ) FILTER (WHERE oi.id IS NOT NULL),
         '[]'
@@ -440,7 +437,7 @@ export class OrdersRepository {
               'id', oi.id, 'order_id', oi.order_id, 'restaurant_id', oi.restaurant_id,
               'menu_item_id', oi.menu_item_id, 'menu_item_name', mi.name, 'quantity', oi.quantity,
               'unit_price', oi.unit_price, 'special_instructions', oi.special_instructions,
-              'status', oi.status, 'kot_printed_at', oi.kot_printed_at
+              'status', oi.status, 'kot_printed_at', oi.kot_printed_at, 'round', oi.round
             )
           ) FILTER (WHERE oi.id IS NOT NULL), '[]'
         ) AS order_items
