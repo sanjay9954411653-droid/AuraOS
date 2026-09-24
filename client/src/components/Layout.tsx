@@ -30,6 +30,7 @@ import {
   CreditCardIcon,
   GlobeAltIcon,
   Cog6ToothIcon,
+  ReceiptPercentIcon,
   TagIcon,
   ChevronUpDownIcon,
   CheckIcon,
@@ -100,6 +101,7 @@ const navItems: NavItem[] = [
 
   { name: 'Users',            href: '/users',              icon: UsersIcon,                roles: ['ADMIN'], section: 'Team & Setup' },
   { name: 'Branding',         href: '/branding',           icon: SwatchIcon,               roles: ['ADMIN'] },
+  { name: 'Bill Settings',    href: '/bill-settings',      icon: ReceiptPercentIcon,       roles: ['ADMIN'] },
   { name: 'QR Settings',      href: '/qr-settings',        icon: QrCodeIcon,               roles: ['ADMIN'], featureKey: 'qr_ordering', restaurantTypes: NAV_TYPE_VISIBILITY['QR Settings'] },
   { name: 'Zomato',           href: '/zomato-settings',    icon: BuildingStorefrontIcon,   roles: ['ADMIN'], featureKey: 'zomato' },
   { name: 'Settings',         href: '/features',           icon: Cog6ToothIcon,            roles: ['ADMIN'] },
