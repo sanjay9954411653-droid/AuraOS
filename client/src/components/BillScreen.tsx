@@ -382,11 +382,33 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
             </>
           )}
 
-          {/* Social links */}
+          {/* Google Review QR + social links */}
+          {visibleSocialLinks.some((s) => s.key === 'google_review') && (
+            <>
+              <div className="border-t border-dashed border-gray-300" />
+              <div className="text-center py-1">
+                <img
+                  src={qrCodeUrl(visibleSocialLinks.find((s) => s.key === 'google_review')!.url, 120)}
+                  alt="Scan to leave a Google Review"
+                  className="w-24 h-24 mx-auto"
+                />
+                <p className="text-xs font-medium text-gray-700 mt-1">Scan to Review us on Google</p>
+              </div>
+            </>
+          )}
+
           {visibleSocialLinks.length > 0 && (
-            <p className="text-center text-[11px] text-gray-400">
-              Follow us: {visibleSocialLinks.map((s) => s.label).join(' · ')}
-            </p>
+            <div className="text-center text-[11px] text-gray-400 space-y-0.5">
+              <p>Follow us:</p>
+              <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
+                {visibleSocialLinks.map((s, i) => (
+                  <span key={s.key}>
+                    {i > 0 && ' · '}
+                    <a href={s.url} target="_blank" rel="noreferrer" className="underline">{s.label}</a>
+                  </span>
+                ))}
+              </p>
+            </div>
           )}
 
           {/* Footer */}
