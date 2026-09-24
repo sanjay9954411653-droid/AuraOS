@@ -24,12 +24,36 @@ import { PrinterIcon, CurrencyDollarIcon, XMarkIcon } from '@heroicons/react/24/
 
 interface RestaurantInfo {
   name: string
+  logo_url: string | null
   gstin: string | null
+  fssai_no: string | null
+  upi_id: string | null
+  address: string | null
+  phone: string | null
   tax_rate: number
   tax_inclusive: boolean
   qsr_enabled: boolean
   token_prefix: string
+  discount_percent: number
+  service_charge_percent: number
+  other_charges_percent: number
+  extra_charges_amount: number
+  show_name_in_bill: boolean
+  bill_social_keys: string[]
+  social_links: Record<string, string>
 }
+
+const SOCIAL_LABELS: Record<string, string> = {
+  google_review: 'Google Review',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  twitter: 'Twitter / X',
+  youtube: 'YouTube',
+}
+
+/** Small inline QR code image via a public generator — no extra deps needed. */
+const qrCodeUrl = (data: string, size = 120) =>
+  `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=0&data=${encodeURIComponent(data)}`
 
 interface BillScreenProps {
   orderId: string
@@ -38,26 +62,50 @@ interface BillScreenProps {
   onCompleted: () => void
 }
 
-function calcTax(subtotal: number, taxRate: number, inclusive: boolean) {
-  if (taxRate === 0) return { subtotal, taxAmount: 0, grandTotal: subtotal, cgst: 0, sgst: 0 }
+/**
+ * Full bill calculation, in order:
+ *   1. Discount % off the raw item subtotal
+ *   2. Service charge % + Other charges % (on the discounted amount)
+ *   3. Flat extra charge
+ *   4. GST (CGST+SGST, or IGST for parcel/online) on the taxable base
+ */
+function calcBill(
+  rawSubtotal: number,
+  restaurant: Pick<RestaurantInfo, 'tax_rate' | 'tax_inclusive' | 'discount_percent' | 'service_charge_percent' | 'other_charges_percent' | 'extra_charges_amount'>,
+) {
+  const { tax_rate: taxRate, tax_inclusive: inclusive } = restaurant
+  const discount = (rawSubtotal * (restaurant.discount_percent || 0)) / 100
+  const afterDiscount = rawSubtotal - discount
 
   let base: number
+  let preTaxTotal: number
   let taxAmount: number
 
-  if (inclusive) {
-    // Prices already include GST — back-calculate the base
-    base = subtotal / (1 + taxRate / 100)
-    taxAmount = subtotal - base
+  if (inclusive && taxRate > 0) {
+    // Prices already include GST — back-calculate the base from the discounted amount
+    base = afterDiscount / (1 + taxRate / 100)
+    taxAmount = afterDiscount - base
+    preTaxTotal = base
   } else {
-    base = subtotal
-    taxAmount = (subtotal * taxRate) / 100
+    base = afterDiscount
+    preTaxTotal = afterDiscount
+    taxAmount = 0
+  }
+
+  const serviceCharge = (preTaxTotal * (restaurant.service_charge_percent || 0)) / 100
+  const otherCharges = (preTaxTotal * (restaurant.other_charges_percent || 0)) / 100
+  const extra = restaurant.extra_charges_amount || 0
+
+  if (!inclusive && taxRate > 0) {
+    const taxableBase = preTaxTotal + serviceCharge + otherCharges + extra
+    taxAmount = (taxableBase * taxRate) / 100
   }
 
   const cgst = taxAmount / 2
   const sgst = taxAmount / 2
-  const grandTotal = base + taxAmount
+  const grandTotal = preTaxTotal + serviceCharge + otherCharges + extra + taxAmount
 
-  return { subtotal: base, taxAmount, cgst, sgst, grandTotal }
+  return { subtotal: rawSubtotal, discount, serviceCharge, otherCharges, extra, taxAmount, cgst, sgst, grandTotal }
 }
 
 const fmt = (n: number) =>
@@ -85,11 +133,23 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
         const r = restRes.data.data
         setRestaurant({
           name: r.name,
+          logo_url: r.logo_url ?? null,
           gstin: r.gstin ?? null,
+          fssai_no: r.fssai_no ?? null,
+          upi_id: r.upi_id ?? null,
+          address: r.address ?? null,
+          phone: r.phone ?? null,
           tax_rate: Number(r.tax_rate ?? 5),
           tax_inclusive: Boolean(r.tax_inclusive),
           qsr_enabled: Boolean(r.qsr_enabled),
           token_prefix: r.token_prefix || 'T',
+          discount_percent: Number(r.discount_percent ?? 0),
+          service_charge_percent: Number(r.service_charge_percent ?? 0),
+          other_charges_percent: Number(r.other_charges_percent ?? 0),
+          extra_charges_amount: Number(r.extra_charges_amount ?? 0),
+          show_name_in_bill: r.show_name_in_bill !== false,
+          bill_social_keys: r.bill_social_keys || [],
+          social_links: r.social_links || {},
         })
       })
       .catch((err) => toast.error(getErrorMessage(err)))
@@ -113,6 +173,7 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
         .bold { font-weight: bold; }
         .total-row { font-size: 14px; font-weight: bold; }
         .tax-row { font-size: 11px; color: #555; }
+        img { max-width: 100%; }
         @media print { body { width: 80mm; } }
       </style>
       </head><body>${content}</body></html>
@@ -131,8 +192,11 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
   if (!order || !restaurant) return null
 
   const rawSubtotal = items.reduce((s, i) => s + Number(i.unit_price || 0) * i.quantity, 0)
-  const { subtotal, cgst, sgst, grandTotal } = calcTax(rawSubtotal, restaurant.tax_rate, restaurant.tax_inclusive)
+  const { subtotal, discount, serviceCharge, otherCharges, extra, cgst, sgst, grandTotal } = calcBill(rawSubtotal, restaurant)
   const isParcel = order.order_type !== 'DINE_IN'
+  const visibleSocialLinks = restaurant.bill_social_keys
+    .map((key) => ({ key, url: restaurant.social_links[key], label: SOCIAL_LABELS[key] || key }))
+    .filter((s) => !!s.url)
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-white">
@@ -145,15 +209,39 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
       </div>
 
       {/* Scrollable bill area */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
         {/* Printable content */}
-        <div ref={printRef} className="max-w-sm mx-auto space-y-3 text-sm">
+        <div
+          ref={printRef}
+          className="max-w-sm mx-auto space-y-3 text-sm bg-white rounded-2xl shadow-sm border border-gray-100 p-5"
+        >
           {/* Restaurant header */}
           <div className="text-center space-y-0.5">
-            <p className="text-xl font-bold text-gray-900">{restaurant.name}</p>
-            {restaurant.gstin && (
-              <p className="text-xs text-gray-500">GSTIN: {restaurant.gstin}</p>
+            {restaurant.logo_url && (
+              <img
+                src={restaurant.logo_url}
+                alt=""
+                className="h-14 w-14 rounded-full object-cover mx-auto mb-1.5 ring-1 ring-gray-100"
+              />
             )}
+            {restaurant.show_name_in_bill && (
+              <p className="text-xl font-bold text-gray-900 tracking-tight">{restaurant.name}</p>
+            )}
+            {restaurant.address && (
+              <p className="text-xs text-gray-500">{restaurant.address}</p>
+            )}
+            {restaurant.phone && (
+              <p className="text-xs text-gray-500">Ph: {restaurant.phone}</p>
+            )}
+            <div className="flex items-center justify-center gap-2 flex-wrap pt-0.5">
+              {restaurant.gstin && (
+                <span className="text-[11px] text-gray-500">GSTIN: {restaurant.gstin}</span>
+              )}
+              {restaurant.gstin && restaurant.fssai_no && <span className="text-[11px] text-gray-300">•</span>}
+              {restaurant.fssai_no && (
+                <span className="text-[11px] text-gray-500">FSSAI: {restaurant.fssai_no}</span>
+              )}
+            </div>
             <p className="text-xs text-gray-400">{formatDate(order.created_at)}</p>
           </div>
 
@@ -226,6 +314,31 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
               <span>{fmt(subtotal)}</span>
             </div>
 
+            {discount > 0 && (
+              <div className="flex justify-between text-emerald-600 text-xs">
+                <span>Discount ({restaurant.discount_percent}%)</span>
+                <span>-{fmt(discount)}</span>
+              </div>
+            )}
+            {serviceCharge > 0 && (
+              <div className="flex justify-between text-gray-500 text-xs">
+                <span>Service Charge ({restaurant.service_charge_percent}%)</span>
+                <span>{fmt(serviceCharge)}</span>
+              </div>
+            )}
+            {otherCharges > 0 && (
+              <div className="flex justify-between text-gray-500 text-xs">
+                <span>Other Charges ({restaurant.other_charges_percent}%)</span>
+                <span>{fmt(otherCharges)}</span>
+              </div>
+            )}
+            {extra > 0 && (
+              <div className="flex justify-between text-gray-500 text-xs">
+                <span>Extra Charges</span>
+                <span>{fmt(extra)}</span>
+              </div>
+            )}
+
             {restaurant.tax_rate > 0 && (
               <>
                 {isParcel ? (
@@ -253,6 +366,28 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
               <span className="text-indigo-600">{fmt(grandTotal)}</span>
             </div>
           </div>
+
+          {/* UPI payment QR */}
+          {restaurant.upi_id && (
+            <>
+              <div className="border-t border-dashed border-gray-300" />
+              <div className="text-center py-1">
+                <img
+                  src={qrCodeUrl(`upi://pay?pa=${restaurant.upi_id}&am=${grandTotal.toFixed(2)}&cu=INR`)}
+                  alt="Scan to pay via UPI"
+                  className="w-24 h-24 mx-auto"
+                />
+                <p className="text-xs text-gray-500 mt-1">Scan to Pay · {restaurant.upi_id}</p>
+              </div>
+            </>
+          )}
+
+          {/* Social links */}
+          {visibleSocialLinks.length > 0 && (
+            <p className="text-center text-[11px] text-gray-400">
+              Follow us: {visibleSocialLinks.map((s) => s.label).join(' · ')}
+            </p>
+          )}
 
           {/* Footer */}
           <div className="border-t border-dashed border-gray-300 pt-2 text-center text-xs text-gray-400">
