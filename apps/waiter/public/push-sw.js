@@ -18,6 +18,8 @@ self.addEventListener('push', (event) => {
     icon: '/icon-512.png',
     badge: '/icon-512.png',
     tag: payload.tag || 'auraos-alert',
+    renotify: true, // re-alert (sound/vibration/heads-up) even if a not-yet-dismissed
+                     // notification with the same tag (same table) is already showing
     vibrate: [300, 100, 300, 100, 300],
     requireInteraction: true, // stays on screen until the waiter dismisses/taps it
     data: payload.data || {},
