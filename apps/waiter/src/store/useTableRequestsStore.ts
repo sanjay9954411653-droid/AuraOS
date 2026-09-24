@@ -82,9 +82,17 @@ export const useTableRequestsStore = create<TableRequestsState>((set, get) => ({
     // hosting proxies don't pass a raw websocket upgrade through cleanly,
     // and polling-then-upgrade (socket.io's own default) is more reliable
     // than forcing websocket only.
+    //
+    // `auth` is a callback rather than a fixed `{ token }` object so every
+    // (re)connect attempt — including the automatic ones after the phone
+    // wakes up — sends whatever access token is current in localStorage,
+    // not the one that was valid when the tab first loaded. The access
+    // token only lives 15 minutes, and a fixed token meant every
+    // reconnection past that point silently failed to authenticate, so
+    // "Call Waiter" / "Request Bill" alerts just stopped after a while.
     socket = io(import.meta.env.VITE_SOCKET_URL || '', {
       transports: ['websocket', 'polling'],
-      auth: { token },
+      auth: (cb) => cb({ token: localStorage.getItem('waiter_token') || token }),
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
