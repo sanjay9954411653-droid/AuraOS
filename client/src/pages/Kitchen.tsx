@@ -235,6 +235,53 @@ const Kitchen: React.FC = () => {
     }
   }
 
+  /**
+   * Per-round actions. Each round card has its own status, worked out from its
+   * own items, so acting on one round never changes the other rounds.
+   */
+  const ensureOrderPreparing = async (order: OrderWithItems) => {
+    if (order.status !== 'PREPARING') await api.patch(`/orders/${order.id}`, { status: 'PREPARING' })
+  }
+
+  const startRound = async (order: OrderWithItems, roundItems: any[]) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await ensureOrderPreparing(order)
+      for (const it of roundItems.filter((i) => i.id && i.status === 'PENDING')) {
+        await api.patch(`/orders/${order.id}/items/${it.id}`, { status: 'PREPARING' })
+      }
+      await fetchOrders()
+    } catch {
+      toast.error('Failed to start preparing')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const finishRound = async (order: OrderWithItems, roundItems: any[]) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await ensureOrderPreparing(order)
+      const remaining = roundItems.filter((i) => i.id && i.status !== 'DONE')
+      for (const it of remaining) {
+        // The last item of the last round auto-advances the whole order to READY
+        await api.patch(`/orders/${order.id}/items/${it.id}`, { status: 'DONE' })
+      }
+      // Everything already done but order not READY yet (e.g. items ticked one by one)
+      const all = (order.order_items || order.items || []) as any[]
+      if (remaining.length === 0 && all.every((i) => i.status === 'DONE')) {
+        await api.patch(`/orders/${order.id}`, { status: 'READY' })
+      }
+      await fetchOrders()
+    } catch {
+      toast.error('Failed to mark ready')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const sorted = [...orders].sort((a, b) => {
     if (sortBy === 'priority') return (b.priority_score || 0) - (a.priority_score || 0)
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -371,13 +418,27 @@ const Kitchen: React.FC = () => {
               // only that round's items). Order status/actions stay shared.
               const allItems = (order.order_items || order.items || []) as any[]
               const rounds = groupByRound(allItems)
-              return rounds.map((g) => ({ order, round: g.round, items: g.items, totalRounds: rounds.length }))
-            }).map(({ order, round, items, totalRounds }) => {
-              const isDelayed = delayedOrderIds.has(order.id)
+              const orderAllDone = allItems.length > 0 && allItems.every((i: any) => i.status === 'DONE')
+              return rounds
+                .map((g) => {
+                  const done = g.items.every((i: any) => i.status === 'DONE')
+                  const started = g.items.some((i: any) => i.status === 'PREPARING' || i.status === 'DONE')
+                  // Status of THIS round only
+                  const roundStatus: OrderStatus =
+                    done && orderAllDone ? 'PREPARING' // whole order finished -> show "Mark Ready"
+                    : done ? 'READY'
+                    : started ? 'PREPARING'
+                    : order.status === 'CREATED' ? 'CREATED'
+                    : 'ACCEPTED'
+                  return { order, round: g.round, items: g.items, totalRounds: rounds.length, roundStatus, hidden: done && !orderAllDone }
+                })
+                .filter((t) => !t.hidden) // a finished round leaves the kitchen while other rounds are still open
+            }).map(({ order, round, items, totalRounds, roundStatus }) => {
+              const isDelayed = delayedOrderIds.has(order.id) && round === 1
               // Delayed orders get a red border regardless of status
               const cardColor = isDelayed
                 ? 'border-red-500 bg-red-950'
-                : (CARD_COLORS[order.status] || 'border-gray-600 bg-gray-900')
+                : (CARD_COLORS[roundStatus] || 'border-gray-600 bg-gray-900')
               const roundStartedAt: string = (items as any[]).map((i) => i.created_at).filter(Boolean).sort()[0] || order.created_at
               const elapsedColor = getElapsedColor(roundStartedAt)
 
@@ -405,16 +466,16 @@ const Kitchen: React.FC = () => {
                         )}
                         <span
                           className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            order.status === 'READY'
+                            roundStatus === 'READY'
                               ? 'bg-emerald-500 text-white'
-                              : order.status === 'PREPARING'
+                              : roundStatus === 'PREPARING'
                               ? 'bg-amber-500 text-white'
-                              : order.status === 'CREATED'
+                              : roundStatus === 'CREATED'
                               ? 'bg-gray-500 text-white'
                               : 'bg-blue-500 text-white'
                           }`}
                         >
-                          {order.status}
+                          {roundStatus}
                         </span>
                       </div>
                     </div>
@@ -489,7 +550,7 @@ const Kitchen: React.FC = () => {
 
                   {/* Actions */}
                   <div className="px-4 py-3 border-t border-white/10 space-y-2">
-                    {order.status === 'CREATED' && (
+                    {roundStatus === 'CREATED' && (
                       <button
                         onClick={() => updateStatus(order.id, 'ACCEPTED')}
                         disabled={busy}
@@ -498,18 +559,18 @@ const Kitchen: React.FC = () => {
                         Accept Order ✓
                       </button>
                     )}
-                    {order.status === 'ACCEPTED' && (
+                    {roundStatus === 'ACCEPTED' && (
                       <button
-                        onClick={() => updateStatus(order.id, 'PREPARING')}
+                        onClick={() => startRound(order, items as any[])}
                         disabled={busy}
                         className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Start Preparing
                       </button>
                     )}
-                    {order.status === 'PREPARING' && (
+                    {roundStatus === 'PREPARING' && (
                       <button
-                        onClick={() => updateStatus(order.id, 'READY')}
+                        onClick={() => finishRound(order, items as any[])}
                         disabled={busy}
                         className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
