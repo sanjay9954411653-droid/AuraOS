@@ -48,6 +48,15 @@ export const UpdateRestaurantRequestSchema = z.object({
   social_links:      z.record(z.string()).optional(),
   default_landing_page: z.enum(['dashboard','orders','tables','kitchen','menu','reports']).optional(),
   website_published: z.boolean().optional(),
+  // ── Bill / receipt fields ────────────────────────────────────────────────────
+  fssai_no:               z.string().max(20).nullable().optional(),
+  upi_id:                 z.string().max(100).nullable().optional(),
+  discount_percent:       z.number().min(0).max(100).optional(),
+  service_charge_percent: z.number().min(0).max(100).optional(),
+  other_charges_percent:  z.number().min(0).max(100).optional(),
+  extra_charges_amount:   z.number().min(0).optional(),
+  show_name_in_bill:      z.boolean().optional(),
+  bill_social_keys:       z.array(z.string()).optional(),
 });
 
 export type CreateRestaurantRequest = z.infer<typeof CreateRestaurantRequestSchema>;
@@ -117,6 +126,14 @@ export interface Restaurant {
   social_links: Record<string, string>;
   website_published: boolean;
   default_landing_page: string;
+  fssai_no: string | null;
+  upi_id: string | null;
+  discount_percent: number;
+  service_charge_percent: number;
+  other_charges_percent: number;
+  extra_charges_amount: number;
+  show_name_in_bill: boolean;
+  bill_social_keys: string[];
   created_at: Date;
   updated_at: Date;
 }

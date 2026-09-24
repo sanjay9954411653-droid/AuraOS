@@ -6,6 +6,11 @@ const RESTAURANT_COLS = `id, name, slug, auto_approve_online_orders, delay_thres
   restaurant_type, qsr_enabled, token_prefix, token_daily_reset, token_counter,
   logo_url, hero_image_url, tagline, description, address, phone, whatsapp,
   public_email, social_links, website_published, default_landing_page,
+  fssai_no, upi_id, discount_percent::float8 AS discount_percent,
+  service_charge_percent::float8 AS service_charge_percent,
+  other_charges_percent::float8 AS other_charges_percent,
+  extra_charges_amount::float8 AS extra_charges_amount,
+  show_name_in_bill, bill_social_keys,
   created_at, updated_at`;
 
 export class RestaurantsRepository {
@@ -67,6 +72,14 @@ export class RestaurantsRepository {
       social_links: Record<string, string>;
       website_published: boolean;
       default_landing_page: string;
+      fssai_no: string | null;
+      upi_id: string | null;
+      discount_percent: number;
+      service_charge_percent: number;
+      other_charges_percent: number;
+      extra_charges_amount: number;
+      show_name_in_bill: boolean;
+      bill_social_keys: string[];
     }>,
   ): Promise<Restaurant | null> {
     const fields: string[] = [];
@@ -97,6 +110,14 @@ export class RestaurantsRepository {
     if (updates.social_links !== undefined) { fields.push(`social_links = $${paramIndex++}::jsonb`); values.push(JSON.stringify(updates.social_links)); }
     if (updates.website_published !== undefined) { fields.push(`website_published = $${paramIndex++}`); values.push(updates.website_published); }
     if (updates.default_landing_page !== undefined) { fields.push(`default_landing_page = $${paramIndex++}`); values.push(updates.default_landing_page); }
+    if (updates.fssai_no !== undefined) { fields.push(`fssai_no = $${paramIndex++}`); values.push(updates.fssai_no); }
+    if (updates.upi_id !== undefined) { fields.push(`upi_id = $${paramIndex++}`); values.push(updates.upi_id); }
+    if (updates.discount_percent !== undefined) { fields.push(`discount_percent = $${paramIndex++}`); values.push(updates.discount_percent); }
+    if (updates.service_charge_percent !== undefined) { fields.push(`service_charge_percent = $${paramIndex++}`); values.push(updates.service_charge_percent); }
+    if (updates.other_charges_percent !== undefined) { fields.push(`other_charges_percent = $${paramIndex++}`); values.push(updates.other_charges_percent); }
+    if (updates.extra_charges_amount !== undefined) { fields.push(`extra_charges_amount = $${paramIndex++}`); values.push(updates.extra_charges_amount); }
+    if (updates.show_name_in_bill !== undefined) { fields.push(`show_name_in_bill = $${paramIndex++}`); values.push(updates.show_name_in_bill); }
+    if (updates.bill_social_keys !== undefined) { fields.push(`bill_social_keys = $${paramIndex++}::jsonb`); values.push(JSON.stringify(updates.bill_social_keys)); }
 
     if (fields.length === 0) return this.findById(restaurantId);
 

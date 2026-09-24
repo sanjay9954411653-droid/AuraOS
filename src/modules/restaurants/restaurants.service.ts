@@ -160,6 +160,14 @@ export class RestaurantsService {
     if (payload.social_links !== undefined) { updates.social_links = payload.social_links; }
     if (payload.website_published !== undefined) { updates.website_published = payload.website_published; }
     if (payload.default_landing_page !== undefined) { updates.default_landing_page = payload.default_landing_page; }
+    if (payload.fssai_no !== undefined) { updates.fssai_no = payload.fssai_no; }
+    if (payload.upi_id !== undefined) { updates.upi_id = payload.upi_id; }
+    if (payload.discount_percent !== undefined) { updates.discount_percent = payload.discount_percent; }
+    if (payload.service_charge_percent !== undefined) { updates.service_charge_percent = payload.service_charge_percent; }
+    if (payload.other_charges_percent !== undefined) { updates.other_charges_percent = payload.other_charges_percent; }
+    if (payload.extra_charges_amount !== undefined) { updates.extra_charges_amount = payload.extra_charges_amount; }
+    if (payload.show_name_in_bill !== undefined) { updates.show_name_in_bill = payload.show_name_in_bill; }
+    if (payload.bill_social_keys !== undefined) { updates.bill_social_keys = payload.bill_social_keys; }
 
     const updated = await restaurantsRepository.update(restaurantId, updates);
     if (!updated) {
