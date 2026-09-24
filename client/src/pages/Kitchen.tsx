@@ -439,7 +439,10 @@ const Kitchen: React.FC = () => {
               const cardColor = isDelayed
                 ? 'border-red-500 bg-red-950'
                 : (CARD_COLORS[roundStatus] || 'border-gray-600 bg-gray-900')
-              const roundStartedAt: string = (items as any[]).map((i) => i.created_at).filter(Boolean).sort()[0] || order.created_at
+              // Item timestamps can arrive without a timezone; treat those as UTC so the timer isn't negative
+              const asUtc = (t: string) => (/[zZ]|[+-]\d\d:?\d\d$/.test(t) ? t : `${t}Z`)
+              const itemTimes = (items as any[]).map((i) => i.created_at && asUtc(String(i.created_at))).filter(Boolean).sort()
+              const roundStartedAt: string = round > 1 && itemTimes[0] ? itemTimes[0] : order.created_at
               const elapsedColor = getElapsedColor(roundStartedAt)
 
               return (

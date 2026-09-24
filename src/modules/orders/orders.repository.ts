@@ -120,7 +120,7 @@ export class OrdersRepository {
               'kot_printed_at', oi.kot_printed_at,
               'round', oi.round,
               'served_at', oi.served_at,
-              'created_at', oi.created_at,
+              'created_at', oi.created_at AT TIME ZONE 'UTC',
               'modifiers', (
                 SELECT COALESCE(
                   json_agg(
@@ -344,7 +344,7 @@ export class OrdersRepository {
             'kot_printed_at', oi.kot_printed_at,
             'round', oi.round,
               'served_at', oi.served_at,
-              'created_at', oi.created_at
+              'created_at', oi.created_at AT TIME ZONE 'UTC'
           )
         ) FILTER (WHERE oi.id IS NOT NULL),
         '[]'
@@ -451,7 +451,7 @@ export class OrdersRepository {
               'unit_price', oi.unit_price, 'special_instructions', oi.special_instructions,
               'status', oi.status, 'kot_printed_at', oi.kot_printed_at, 'round', oi.round,
               'served_at', oi.served_at,
-              'created_at', oi.created_at
+              'created_at', oi.created_at AT TIME ZONE 'UTC'
             )
           ) FILTER (WHERE oi.id IS NOT NULL), '[]'
         ) AS order_items
@@ -531,10 +531,10 @@ export class OrdersRepository {
     const result = await query(
       `UPDATE order_items
        SET status = $1, completed_at = $2, updated_at = CURRENT_TIMESTAMP,
-           served_at = CASE WHEN $1 = 'DONE' THEN served_at ELSE NULL END
+           served_at = CASE WHEN $5::boolean THEN served_at ELSE NULL END
        WHERE id = $3 AND order_id = $4
        RETURNING id, order_id, menu_item_id, quantity, unit_price, special_instructions, status, completed_at, round, created_at, updated_at`,
-      [status, completedAt, itemId, orderId],
+      [status, completedAt, itemId, orderId, status === 'DONE'],
     );
     return result.rows[0] || null;
   }
