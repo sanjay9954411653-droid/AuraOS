@@ -35,7 +35,18 @@ export class OrdersController {
         total_amount: Number(result.order.total_amount),
         table_id: result.order.table_id,
       });
-
+pushService
+  .sendToRestaurant(
+    restaurantId,
+    {
+      title: '🔔 New order',
+      body: `Order ${result.order.order_number} received in the kitchen`,
+      tag: `new-order-${result.order.id}`,
+      data: { url: '/kitchen', orderId: result.order.id },
+    },
+    'KITCHEN',
+  )
+  .catch((err) => console.error('Kitchen push notify failed:', err?.message || err));
       res.status(201).json(successResponse(result, { message: 'Order created successfully' }));
     } catch (error) {
       next(error);
