@@ -6,7 +6,7 @@
  */
 
 self.addEventListener('push', (event) => {
-  let payload = { title: 'AuraOS', body: 'You have a new alert' };
+  let payload = { title: 'NF Restro', body: 'You have a new alert' };
   try {
     if (event.data) payload = event.data.json();
   } catch {
