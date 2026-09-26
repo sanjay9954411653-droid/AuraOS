@@ -43,4 +43,9 @@ router.post('/change-plan', authenticate, authorize('ADMIN'), (req, res, next) =
   subscriptionsController.changePlan(req, res, next),
 );
 
+// Create Razorpay subscription (ADMIN)
+router.post('/create-razorpay-subscription', authenticate, authorize('ADMIN'), (req, res, next) =>
+  subscriptionsController.createRazorpaySubscription(req, res, next),
+);
+
 export default router;
