@@ -47,32 +47,112 @@ interface PaymentSheetProps {
   onPaid: () => void
 }
 
+type PaymentLine = {
+  id: number
+  method: PaymentMethod
+  amount: number
+  reference: string
+}
+
+const makePaymentLine = (id: number, amount = 0): PaymentLine => ({
+  id,
+  method: 'CASH',
+  amount,
+  reference: '',
+})
+
 const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) => {
   const total = Number(order.total_amount || 0)
+  const [mode, setMode] = useState<'single' | 'split'>('single')
   const [method, setMethod] = useState<PaymentMethod>('CASH')
   const [amount, setAmount] = useState(total)
   const [reference, setReference] = useState('')
+  const [splits, setSplits] = useState<PaymentLine[]>([makePaymentLine(1, total)])
   const [saving, setSaving] = useState(false)
 
-  const handlePay = async () => {
-    if (amount <= 0) { toast.error('Enter a valid amount'); return }
-    if ((method === 'CARD' || method === 'UPI' || method === 'ONLINE') && !reference) {
-      toast.error('Reference / transaction ID required'); return
+  const splitTotal = splits.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
+  const remaining = Math.max(0, total - splitTotal)
+
+  const updateSplit = (id: number, updates: Partial<PaymentLine>) => {
+    setSplits((prev) => prev.map((line) => (line.id === id ? { ...line, ...updates } : line)))
+  }
+
+  const addSplit = () => {
+    const nextId = Math.max(0, ...splits.map((s) => s.id)) + 1
+    setSplits((prev) => [...prev, makePaymentLine(nextId, 0)])
+  }
+
+  const removeSplit = (id: number) => {
+    if (splits.length <= 2) return
+    setSplits((prev) => prev.filter((line) => line.id !== id))
+  }
+
+  const validateLine = (line: PaymentLine) => {
+    if (line.amount <= 0) {
+      toast.error('Each split amount must be greater than ₹0')
+      return false
     }
+    if ((line.method === 'CARD' || line.method === 'UPI' || line.method === 'ONLINE') && !line.reference.trim()) {
+      toast.error(`Reference / transaction ID required for ${line.method}`)
+      return false
+    }
+    return true
+  }
+
+  const handlePay = async () => {
+    if (saving) return
+
+    if (mode === 'single') {
+      if (amount <= 0) {
+        toast.error('Enter a valid amount')
+        return
+      }
+      if (amount > total + 0.01) {
+        toast.error(`Amount cannot exceed ${formatCurrency(total)}`)
+        return
+      }
+      if ((method === 'CARD' || method === 'UPI' || method === 'ONLINE') && !reference.trim()) {
+        toast.error('Reference / transaction ID required')
+        return
+      }
+    } else {
+      if (splits.length < 2) {
+        toast.error('Add at least two payments for split payment')
+        return
+      }
+      if (Math.abs(splitTotal - total) > 0.01) {
+        toast.error(`Split total must equal ${formatCurrency(total)}. Remaining: ${formatCurrency(Math.max(0, total - splitTotal))}`)
+        return
+      }
+      if (!splits.every(validateLine)) return
+    }
+
     setSaving(true)
     try {
-      await paymentsApi.create({
-        order_id: order.id,
-        amount,
-        method,
-        status: 'PAID',
-        reference_number: reference || undefined,
-      })
-      // Mark order COMPLETED after full payment
-      if (amount >= total) {
-        try { await ordersApi.updateStatus(order.id, 'COMPLETED') } catch { /* already completed by backend */ }
+      if (mode === 'single') {
+        await paymentsApi.create({
+          order_id: order.id,
+          amount,
+          method,
+          status: 'PAID',
+          reference_number: reference.trim() || undefined,
+        })
+      } else {
+        // Create each split as a separate payment record. The backend locks the
+        // order while inserting each payment and automatically completes it
+        // when the final split reaches the full order total.
+        for (const line of splits) {
+          await paymentsApi.create({
+            order_id: order.id,
+            amount: Number(line.amount),
+            method: line.method,
+            status: 'PAID',
+            reference_number: line.reference.trim() || undefined,
+          })
+        }
       }
-      toast.success('Payment recorded ✓')
+
+      toast.success(mode === 'split' ? 'Split payment recorded ✓' : 'Payment recorded ✓')
       onPaid()
     } catch (err: any) {
       toast.error(err?.response?.data?.error?.message || 'Payment failed')
@@ -81,10 +161,17 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
     }
   }
 
+  const switchMode = (nextMode: 'single' | 'split') => {
+    setMode(nextMode)
+    if (nextMode === 'split') {
+      setSplits([makePaymentLine(1, total), makePaymentLine(2, 0)])
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-2xl p-5 space-y-4 animate-slide-up">
+      <div className="relative w-full bg-white rounded-t-2xl p-5 space-y-4 animate-slide-up max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -102,56 +189,170 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
           <span className="text-2xl font-bold text-indigo-700">{formatCurrency(total)}</span>
         </div>
 
-        {/* Amount input */}
-        <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Amount collected</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">₹</span>
-            <input
-              type="number"
-              step="0.01"
-              min={0.01}
-              value={amount || ''}
-              onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-              className="input pl-7 text-lg font-bold"
-            />
-          </div>
+        {/* Payment mode */}
+        <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl">
+          <button
+            onClick={() => switchMode('single')}
+            className={`py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+              mode === 'single' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'
+            }`}
+          >
+            Single Payment
+          </button>
+          <button
+            onClick={() => switchMode('split')}
+            className={`py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+              mode === 'split' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'
+            }`}
+          >
+            Split Payment
+          </button>
         </div>
 
-        {/* Method */}
-        <div>
-          <label className="text-xs font-medium text-gray-500 mb-2 block">Payment method</label>
-          <div className="grid grid-cols-4 gap-2">
-            {PAYMENT_METHODS.map((m) => (
-              <button
-                key={m}
-                onClick={() => setMethod(m)}
-                className={`py-2.5 text-sm font-semibold rounded-xl border transition-colors ${
-                  method === m
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
-                }`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-        </div>
+        {mode === 'single' ? (
+          <>
+            {/* Amount input */}
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Amount collected</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">₹</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0.01}
+                  max={total}
+                  value={amount || ''}
+                  onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+                  className="input pl-7 text-lg font-bold"
+                />
+              </div>
+              {amount < total && amount > 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  Remaining balance: {formatCurrency(total - amount)}
+                </p>
+              )}
+            </div>
 
-        {/* Reference for non-cash */}
-        {method !== 'CASH' && (
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">
-              Transaction / Reference ID{method === 'CARD' ? ' *' : ''}
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. TXN123456"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              className="input text-sm"
-            />
-          </div>
+            {/* Method */}
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-2 block">Payment method</label>
+              <div className="grid grid-cols-4 gap-2">
+                {PAYMENT_METHODS.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMethod(m)}
+                    className={`py-2.5 text-sm font-semibold rounded-xl border transition-colors ${
+                      method === m
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Reference for non-cash */}
+            {method !== 'CASH' && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">
+                  Transaction / Reference ID{method === 'CARD' ? ' *' : ''}
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. TXN123456"
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  className="input text-sm"
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Split summary */}
+            <div className={`rounded-xl px-4 py-3 flex items-center justify-between ${
+              Math.abs(splitTotal - total) <= 0.01 ? 'bg-emerald-50' : 'bg-amber-50'
+            }`}>
+              <div>
+                <p className="text-xs text-gray-500">Split total</p>
+                <p className="text-lg font-bold text-gray-900">{formatCurrency(splitTotal)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500">Remaining</p>
+                <p className={`text-lg font-bold ${remaining <= 0.01 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {formatCurrency(remaining)}
+                </p>
+              </div>
+            </div>
+
+            {/* Split rows */}
+            <div className="space-y-3">
+              {splits.map((line, index) => (
+                <div key={line.id} className="rounded-xl border border-gray-200 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-800">Payment {index + 1}</span>
+                    {splits.length > 2 && (
+                      <button
+                        onClick={() => removeSplit(line.id)}
+                        className="text-xs font-medium text-red-500"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    {PAYMENT_METHODS.map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => updateSplit(line.id, { method: m })}
+                        className={`py-2 text-xs font-semibold rounded-lg border transition-colors ${
+                          line.method === m
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-gray-600 border-gray-200'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">₹</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0.01}
+                      value={line.amount || ''}
+                      onChange={(e) => updateSplit(line.id, { amount: parseFloat(e.target.value) || 0 })}
+                      className="input pl-7 font-bold"
+                      placeholder="Amount"
+                    />
+                  </div>
+
+                  {line.method !== 'CASH' && (
+                    <input
+                      type="text"
+                      placeholder="Transaction / Reference ID"
+                      value={line.reference}
+                      onChange={(e) => updateSplit(line.id, { reference: e.target.value })}
+                      className="input text-sm"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={addSplit}
+              className="w-full py-2.5 rounded-xl border-2 border-dashed border-indigo-200 text-indigo-600 font-semibold text-sm hover:bg-indigo-50"
+            >
+              + Add another payment
+            </button>
+          </>
         )}
 
         {/* Confirm */}
@@ -165,7 +366,11 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
           ) : (
             <CurrencyDollarIcon className="w-5 h-5" />
           )}
-          {saving ? 'Recording…' : `Confirm — ${formatCurrency(amount)}`}
+          {saving
+            ? 'Recording…'
+            : mode === 'split'
+              ? `Confirm Split — ${formatCurrency(splitTotal)}`
+              : `Confirm — ${formatCurrency(amount)}`}
         </button>
       </div>
     </div>
