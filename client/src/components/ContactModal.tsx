@@ -292,7 +292,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
               <a href="#" className="text-slate-500 hover:text-slate-300 underline underline-offset-2 transition-colors">
                 Privacy Policy
               </a>{' '}
-              and consent to being contacted about AuraOS.
+              and consent to being contacted about NF Restro.
             </p>
           </form>
         )}
