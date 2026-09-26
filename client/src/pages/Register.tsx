@@ -96,7 +96,7 @@ const Register: React.FC = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group mb-16">
             <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-[#3b82f6]/25">A</span>
-            <span className="text-lg font-bold tracking-tight">Aura<span className="text-[#3b82f6]">OS</span></span>
+            <span className="text-lg font-bold tracking-tight">NF<span className="text-[#3b82f6]">Restro</span></span>
           </Link>
 
           {/* Headline & Description */}
@@ -109,7 +109,7 @@ const Register: React.FC = () => {
               </span>
             </h1>
             <p className="text-lg text-slate-400 leading-relaxed mb-12 max-w-md">
-              Run QSRs, Cafés, Full-Service Restaurants, Cloud Kitchens and Multi-Outlet Chains with AuraOS.
+              Run QSRs, Cafés, Full-Service Restaurants, Cloud Kitchens and Multi-Outlet Chains with NF Restro.
             </p>
 
             {/* Features */}
@@ -131,7 +131,7 @@ const Register: React.FC = () => {
           </div>
 
           {/* Footer */}
-          <p className="text-slate-500 text-sm">© 2026 AuraOS. All rights reserved.</p>
+          <p className="text-slate-500 text-sm">© 2026 NF Restro. All rights reserved.</p>
         </div>
 
         {/* RIGHT SIDE — Registration Form */}
@@ -140,13 +140,13 @@ const Register: React.FC = () => {
             {/* Mobile logo */}
             <Link to="/" className="lg:hidden flex items-center gap-2.5 mb-8">
               <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm">A</span>
-              <span className="text-lg font-bold">Aura<span className="text-[#3b82f6]">OS</span></span>
+              <span className="text-lg font-bold">NF<span className="text-[#3b82f6]">Restro</span></span>
             </Link>
 
             {/* Glass card */}
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl p-8 sm:p-10">
               <h2 className="text-2xl font-bold text-white mb-1">Create Account</h2>
-              <p className="text-slate-400 text-sm mb-8">Join AuraOS and start your free trial</p>
+              <p className="text-slate-400 text-sm mb-8">Join NF Restro and start your free trial</p>
 
               <form className="space-y-4" onSubmit={handleSubmit}>
                 {/* Full Name */}
