@@ -75,8 +75,8 @@ export default defineConfig({
 
       // Web App Manifest — controls how the app looks when installed
       manifest: {
-        name: 'AuraOS — Restaurant POS',
-        short_name: 'AuraOS',
+        name: 'NF Restro — Restaurant POS',
+        short_name: 'NF Restro',
         description: 'Restaurant staff app — orders, kitchen, tables, payments',
         theme_color: '#0f1f3d',
         background_color: '#0f1f3d',
