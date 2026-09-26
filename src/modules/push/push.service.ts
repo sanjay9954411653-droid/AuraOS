@@ -35,12 +35,21 @@ class PushService {
    * subscriptions (410/404 from the push service, e.g. the app was
    * uninstalled) are cleaned up automatically.
    */
-  async sendToRestaurant(restaurantId: string, payload: PushPayload): Promise<void> {
+  async sendToRestaurant(
+  restaurantId: string,
+  payload: PushPayload,
+  role?: 'ADMIN' | 'WAITER' | 'RECEPTION' | 'KITCHEN',
+): Promise<void> {
     if (!pushEnabled) return;
 
     const result = await query(
-      `SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE restaurant_id = $1`,
-      [restaurantId],
+      `SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth
+ FROM push_subscriptions ps
+ JOIN users u ON u.id = ps.user_id
+ WHERE ps.restaurant_id = $1
+   AND ($2::user_role IS NULL OR u.role = $2::user_role)
+   AND u.is_active = true`,
+     [restaurantId, role ?? null],
     );
     if (result.rows.length === 0) return;
 
