@@ -95,7 +95,7 @@ const Register: React.FC = () => {
         <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group mb-16">
-            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-[#3b82f6]/25">A</span>
+            <img src="/icon-512.png" alt="NF Restro" className="w-8 h-8 rounded-lg object-cover" />
             <span className="text-lg font-bold tracking-tight">NF<span className="text-[#3b82f6]">Restro</span></span>
           </Link>
 
@@ -139,7 +139,7 @@ const Register: React.FC = () => {
           <div className="w-full max-w-md">
             {/* Mobile logo */}
             <Link to="/" className="lg:hidden flex items-center gap-2.5 mb-8">
-              <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm">A</span>
+              <img src="/icon-512.png" alt="NF Restro" className="w-8 h-8 rounded-lg object-cover" />
               <span className="text-lg font-bold">NF<span className="text-[#3b82f6]">Restro</span></span>
             </Link>
 
