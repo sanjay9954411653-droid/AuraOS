@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { subscriptionsService } from './subscriptions.service';
+import { createRazorpaySubscription } from '@/modules/payments/gateways/razorpay.gateway';
 import { CreateInvoiceSchema, ChangePlanSchema } from './subscriptions.types';
 import { successResponse } from '@/shared/utils/responseHandler';
 import { AuthenticatedRequest } from '@/shared/middleware/authenticate';
@@ -30,6 +31,63 @@ export class SubscriptionsController {
       const view = await subscriptionsService.changePlan(restaurantId, plan_id);
       res.status(200).json(successResponse(view, { message: 'Plan changed successfully' }));
     } catch (error) { next(error); }
+  }
+
+    // POST /subscriptions/create-razorpay-subscription — create monthly Razorpay subscription
+  async createRazorpaySubscription(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const restaurantId = req.user!.restaurantId;
+      const { plan_id } = req.body;
+
+      if (!plan_id) {
+        res.status(400).json({
+          success: false,
+          error: { message: 'plan_id is required' },
+        });
+        return;
+      }
+
+      const plans = await subscriptionsService.getPlans();
+      const plan = plans.find((p: any) => p.id === plan_id);
+
+      if (!plan) {
+        res.status(404).json({
+          success: false,
+          error: { message: 'Subscription plan not found' },
+        });
+        return;
+      }
+
+      if (!plan.gateway_plan_id) {
+        res.status(400).json({
+          success: false,
+          error: { message: 'This plan is not configured for Razorpay' },
+        });
+        return;
+      }
+
+      const razorpaySubscription = await createRazorpaySubscription(
+        plan.gateway_plan_id,
+        true,
+      );
+
+      res.status(201).json(
+        successResponse({
+          restaurant_id: restaurantId,
+          plan_id: plan.id,
+          plan_name: plan.name,
+          razorpay_subscription_id: razorpaySubscription.razorpay_subscription_id,
+          razorpay_plan_id: razorpaySubscription.razorpay_plan_id,
+          status: razorpaySubscription.status,
+          short_url: razorpaySubscription.short_url,
+          key_id: razorpaySubscription.key_id,
+        }, {
+          message: 'Razorpay subscription created',
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
   }
 
   // GET /invoices — current restaurant's invoices
