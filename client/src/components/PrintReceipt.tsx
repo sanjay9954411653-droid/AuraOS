@@ -165,7 +165,7 @@ export function printReceipt(
       <div class="center" style="font-size:11px;">
         <div>Thank you for dining with us!</div>
         <div style="margin-top:4px;color:#555;font-size:10px;">
-          Powered by AuraOS
+          Powered by NF Restro
         </div>
         <div style="margin-top:2px;color:#777;font-size:10px;">
           ${new Date().toLocaleString('en-IN')}
