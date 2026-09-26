@@ -59,19 +59,27 @@ const Subscription: React.FC = () => {
 
   useEffect(() => { load() }, [])
 
-  const handleChangePlan = async (planId: string) => {
-    if (!confirm('Switch to this plan? An invoice will be generated for payment.')) return
+    const handleChangePlan = async (planId: string) => {
+    if (!confirm('Subscribe to this plan using Razorpay?')) return
+
     setChangingPlan(planId)
+
     try {
-      await subscriptionApi.changePlan(planId)
-      toast.success('Plan updated')
-      await refresh()
+      const response = await subscriptionApi.createRazorpaySubscription(planId)
+
+      const data = response.data.data
+
+      if (!data?.short_url) {
+        throw new Error('Razorpay checkout link was not created')
+      }
+
+      window.location.href = data.short_url
     } catch (err) {
       toast.error(getErrorMessage(err))
     } finally {
       setChangingPlan(null)
     }
-  }
+    }
 
   const handleMarkPaid = async (id: string) => {
     setPayingId(id)
