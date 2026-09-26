@@ -332,8 +332,8 @@ const [pushBusy, setPushBusy] = useState(false)
       {/* Header */}
       <header className="bg-gray-900 border-b-2 border-indigo-500 px-3 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold tracking-wider text-white">KITCHEN DISPLAY</h1>
-          <p className="text-gray-400 text-sm mt-0.5">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-wider text-white">KITCHEN DISPLAY</h1>
+          <p className="text-gray-400 text-xs sm:text-sm mt-0.5">
             {sorted.filter((o) => o.status === 'CREATED').length > 0 && (
               <span className="text-gray-300 font-semibold">{sorted.filter((o) => o.status === 'CREATED').length} new · </span>
             )}
@@ -455,7 +455,7 @@ const [pushBusy, setPushBusy] = useState(false)
       )}
 
       {/* Orders grid */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-2 sm:p-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-gray-400">Loading orders…</div>
