@@ -11,7 +11,7 @@ import json
 from app.copilot.intent_classifier import Intent
 
 
-SYSTEM_PROMPT = """You are AuraOS AI Copilot, a restaurant business intelligence assistant.
+SYSTEM_PROMPT = """You are NF Restro AI Copilot, a restaurant business intelligence assistant.
 You help restaurant owners understand their data and make better decisions.
 
 Your rules:
