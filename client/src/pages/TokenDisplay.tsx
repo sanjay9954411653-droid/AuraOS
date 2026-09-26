@@ -133,7 +133,7 @@ const TokenDisplay: React.FC = () => {
       </div>
 
       <footer className="bg-gray-900 border-t border-gray-800 px-6 py-2 flex justify-between shrink-0">
-        <p className="text-gray-600 text-xs">AuraOS · Token Display</p>
+        <p className="text-gray-600 text-xs">NF Restro · Token Display</p>
         <p className="text-gray-600 text-xs">Please collect your order when your token appears above</p>
       </footer>
     </div>
