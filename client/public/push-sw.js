@@ -43,7 +43,9 @@ self.addEventListener('notificationclick', (event) => {
       }
 
       if (self.clients.openWindow) {
-        return self.clients.openWindow('/kitchen')
+  return self.clients.openWindow(
+    event.notification.data?.url || '/kitchen'
+  )
       }
     })
   )
