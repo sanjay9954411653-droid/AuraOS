@@ -61,7 +61,7 @@ const matchesDiet = (diet: DietFilter, isVeg: boolean) =>
 interface ModifierOption {
   id: string
   name: string
-  price_adjustment: number8
+  price_adjustment: number
   sort_order: number
 }
 
@@ -199,6 +199,7 @@ const CustomerApp: React.FC = () => {
   // Modifier selection modal
   const [modifierItem, setModifierItem] = useState<MenuItem | null>(null)
   const [modifierSelections, setModifierSelections] = useState<Record<string, string | string[]>>({})
+  const [modifierQuantity, setModifierQuantity] = useState(1)
 
   // UI state
   const [step, setStep] = useState<Step>('info')
@@ -439,6 +440,8 @@ const CustomerApp: React.FC = () => {
       init[g.id] = g.selection_type === 'single' ? '' : []
     }
     setModifierSelections(init)
+    setModifierQuantity(1)
+    setError('')
   }
 
   const toggleModifierOption = (groupId: string, optionId: string, selectionType: 'single' | 'multiple') => {
@@ -453,6 +456,13 @@ const CustomerApp: React.FC = () => {
       }
       return { ...prev, [groupId]: [...current, optionId] }
     })
+  }
+
+  const closeModifierModal = () => {
+    setModifierItem(null)
+    setModifierSelections({})
+    setModifierQuantity(1)
+    setError('')
   }
 
   const confirmModifiers = () => {
@@ -502,9 +512,11 @@ const CustomerApp: React.FC = () => {
     }
 
     setError('')
-    addToCart(modifierItem, selectedMods)
-    setModifierItem(null)
-    setModifierSelections({})
+    for (let i = 0; i < modifierQuantity; i += 1) {
+      addToCart(modifierItem, selectedMods)
+    }
+    closeModifierModal()
+    setNotice(`${modifierQuantity} ${modifierQuantity === 1 ? 'item' : 'items'} added to your order`)
   }
 
   // ── Validate info step ─────────────────────────────────────────────────────
@@ -922,9 +934,10 @@ const CustomerApp: React.FC = () => {
   )
 
   const handleAdd = (item: MenuItem) => {
-    const hasMods = itemModifierGroups[item.id] && itemModifierGroups[item.id].length > 0
-    if (hasMods) openModifierModal(item)
-    else addToCart(item)
+    // Always open the item detail sheet so customers can review the dish
+    // before adding it. Items without modifiers simply show the details and
+    // the quantity selector.
+    openModifierModal(item)
   }
 
   // "Order again": put a past order back in the cart, using today's menu and prices.
@@ -1395,94 +1408,222 @@ const CustomerApp: React.FC = () => {
         </div>
       )}
 
-      {/* ── Modifier Selection Modal ─────────────────────────────────────────── */}
+      {/* ── Item Detail / Modifier Modal ─────────────────────────────────────── */}
       {modifierItem && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setModifierItem(null); setError('') }} />
-          <div className="relative w-full max-w-2xl bg-white rounded-t-3xl shadow-2xl max-h-[80vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">{modifierItem.name}</h2>
-                <p className="text-sm text-gray-400">Customise your order</p>
-              </div>
+          <div
+            className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+            onClick={closeModifierModal}
+          />
+
+          <div className="relative w-full max-w-2xl bg-white rounded-t-[2rem] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Hero image */}
+            <div className="relative shrink-0 bg-gray-100">
+              {modifierItem.image_url ? (
+                <img
+                  src={optimizeImageUrl(modifierItem.image_url, 900)}
+                  alt={modifierItem.name}
+                  className="w-full h-48 sm:h-56 object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              ) : (
+                <div className="w-full h-36 flex items-center justify-center bg-[color:color-mix(in_srgb,var(--accent)_8%,#ffffff)]">
+                  <SparklesIcon className="w-12 h-12 text-[var(--accent)]/40" />
+                </div>
+              )}
+
               <button
-                onClick={() => { setModifierItem(null); setError('') }}
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-400"
+                onClick={closeModifierModal}
+                aria-label="Close item details"
+                className="absolute top-3 right-3 p-2.5 rounded-full bg-white/95 backdrop-blur shadow-lg text-gray-500 hover:bg-white"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modifier groups */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-              {(itemModifierGroups[modifierItem.id] || []).map((group) => (
-                <div key={group.id}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-sm font-semibold text-gray-900">{group.name}</h3>
-                    {group.selection_type === 'single' ? (
-                      <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
-                        {group.min_select > 0 ? 'Required' : 'Optional'} · Pick one
+            {/* Item information */}
+            <div className="px-5 pt-4 pb-3 border-b border-gray-100">
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {modifierItem.is_vegetarian ? (
+                      <span className="w-4 h-4 rounded-sm border-2 border-emerald-600 flex items-center justify-center shrink-0" title="Vegetarian">
+                        <span className="w-2 h-2 rounded-full bg-emerald-600" />
                       </span>
                     ) : (
-                      <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
-                        Pick up to {group.max_select}
+                      <span className="w-4 h-4 rounded-sm border-2 border-red-600 flex items-center justify-center shrink-0" title="Non-vegetarian">
+                        <span className="w-2 h-2 rounded-full bg-red-600" />
                       </span>
                     )}
+                    <h2 className="text-xl font-extrabold text-gray-900 leading-tight">
+                      {modifierItem.name}
+                    </h2>
                   </div>
-                  <div className="space-y-1">
-                    {group.options.map((opt) => {
-                      const sel = modifierSelections[group.id]
-                      const isSelected = group.selection_type === 'single'
-                        ? (sel as string) === opt.id
-                        : ((sel as string[]) || []).includes(opt.id)
 
-                      return (
-                        <button
-                          key={opt.id}
-                          onClick={() => toggleModifierOption(group.id, opt.id, group.selection_type)}
-                          className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-colors text-left ${
-                            isSelected
-                              ? 'border-[color:var(--accent)] bg-gray-50'
-                              : 'border-gray-200 bg-white hover:border-gray-300'
-                          }`}
-                        >
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                            group.selection_type === 'single' ? 'rounded-full' : 'rounded'
-                          } ${
-                            isSelected ? 'border-[color:var(--accent)] bg-[var(--accent)]' : 'border-gray-300'
-                          }`}>
-                            {isSelected && (
-                              <CheckCircleIcon className="w-4 h-4 text-white" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">{opt.name}</p>
-                          </div>
-                          {opt.price_adjustment > 0 && (
-                            <span className="text-sm font-medium text-gray-500">+{formatCurrency(opt.price_adjustment)}</span>
-                          )}
-                          {opt.price_adjustment === 0 && (
-                            <span className="text-xs text-gray-400">Included</span>
-                          )}
-                        </button>
-                      )
-                    })}
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="text-lg font-extrabold text-[var(--accent)]">
+                      {formatCurrency(modifierItem.price)}
+                    </span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                      ⏱ {modifierItem.prep_time_minutes} min
+                    </span>
                   </div>
                 </div>
-              ))}
+              </div>
+
+              {modifierItem.description && (
+                <p className="text-sm text-gray-500 leading-relaxed mt-3">
+                  {modifierItem.description}
+                </p>
+              )}
             </div>
 
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 space-y-2">
-              {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+            {/* Customisations */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+              {(itemModifierGroups[modifierItem.id] || []).length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-base font-bold text-gray-900">Customise your order</h3>
+                    <span className="text-xs text-gray-400">Choose your preferences</span>
+                  </div>
 
-              <button
-                onClick={confirmModifiers}
-                className="w-full py-4 bg-[var(--accent)] hover:brightness-95 text-white font-bold rounded-2xl transition-colors"
-              >
-                Add to Order
-              </button>
+                  <div className="space-y-5">
+                    {(itemModifierGroups[modifierItem.id] || []).map((group) => (
+                      <div key={group.id}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-sm font-semibold text-gray-900">{group.name}</h3>
+                          {group.selection_type === 'single' ? (
+                            <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                              {group.min_select > 0 ? 'Required' : 'Optional'} · Pick one
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                              {group.min_select > 0 ? `Pick ${group.min_select}${group.max_select > group.min_select ? `–${group.max_select}` : ''}` : `Up to ${group.max_select}`}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          {group.options.map((opt) => {
+                            const sel = modifierSelections[group.id]
+                            const isSelected = group.selection_type === 'single'
+                              ? (sel as string) === opt.id
+                              : ((sel as string[]) || []).includes(opt.id)
+
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => toggleModifierOption(group.id, opt.id, group.selection_type)}
+                                className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border transition-all text-left ${
+                                  isSelected
+                                    ? 'border-[color:var(--accent)] bg-[color:color-mix(in_srgb,var(--accent)_7%,#ffffff)] shadow-sm'
+                                    : 'border-gray-200 bg-white hover:border-gray-300'
+                                }`}
+                              >
+                                <div className={`w-5 h-5 flex items-center justify-center shrink-0 border-2 ${
+                                  group.selection_type === 'single' ? 'rounded-full' : 'rounded-md'
+                                } ${
+                                  isSelected
+                                    ? 'border-[var(--accent)] bg-[var(--accent)]'
+                                    : 'border-gray-300 bg-white'
+                                }`}>
+                                  {isSelected && <CheckCircleIcon className="w-4 h-4 text-white" />}
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-gray-900">{opt.name}</p>
+                                </div>
+
+                                {opt.price_adjustment > 0 && (
+                                  <span className="text-sm font-semibold text-gray-600">
+                                    +{formatCurrency(opt.price_adjustment)}
+                                  </span>
+                                )}
+                                {opt.price_adjustment < 0 && (
+                                  <span className="text-sm font-semibold text-emerald-600">
+                                    -{formatCurrency(Math.abs(opt.price_adjustment))}
+                                  </span>
+                                )}
+                                {opt.price_adjustment === 0 && (
+                                  <span className="text-xs text-gray-400">Included</span>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(itemModifierGroups[modifierItem.id] || []).length === 0 && (
+                <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3 text-sm text-gray-500">
+                  This item has no customisations. Choose your quantity below.
+                </div>
+              )}
+            </div>
+
+            {/* Sticky footer */}
+            <div className="shrink-0 px-5 pt-3 pb-5 border-t border-gray-100 bg-white space-y-3">
+              {error && (
+                <p className="text-xs font-medium text-red-600 bg-red-50 rounded-xl px-3 py-2.5">
+                  {error}
+                </p>
+              )}
+
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs text-gray-400">Quantity</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setModifierQuantity((q) => Math.max(1, q - 1))}
+                      className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 active:scale-95"
+                      aria-label="Decrease quantity"
+                    >
+                      <MinusIcon className="w-4 h-4" />
+                    </button>
+                    <span className="w-8 text-center font-bold text-gray-900">{modifierQuantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => setModifierQuantity((q) => Math.min(99, q + 1))}
+                      className="w-9 h-9 rounded-full bg-[var(--accent)] text-white flex items-center justify-center shadow-sm hover:brightness-95 active:scale-95"
+                      aria-label="Increase quantity"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={confirmModifiers}
+                  className="flex-1 max-w-sm py-3.5 px-5 bg-[var(--accent)] hover:brightness-95 text-white font-bold rounded-2xl shadow-lg transition-transform active:scale-[0.99]"
+                >
+                  Add {modifierQuantity} · {formatCurrency(getEffectivePrice(
+                    modifierItem,
+                    Object.entries(modifierSelections).flatMap(([groupId, selection]) => {
+                      const group = (itemModifierGroups[modifierItem.id] || []).find((g) => g.id === groupId)
+                      if (!group) return []
+                      const ids = group.selection_type === 'single'
+                        ? (selection ? [selection as string] : [])
+                        : ((selection as string[]) || [])
+                      return ids.map((id) => {
+                        const opt = group.options.find((o) => o.id === id)
+                        return opt ? {
+                          group_id: group.id,
+                          group_name: group.name,
+                          option_id: opt.id,
+                          option_name: opt.name,
+                          price_adjustment: opt.price_adjustment,
+                        } : null
+                      }).filter(Boolean) as SelectedModifier[]
+                    }),
+                  ) * modifierQuantity)}
+                </button>
+              </div>
             </div>
           </div>
         </div>
