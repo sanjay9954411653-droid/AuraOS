@@ -298,6 +298,10 @@ export const subscriptionApi = {
   changePlan: (planId: string) =>
     api.post('/subscriptions/change-plan', { plan_id: planId }),
 
+       // Create Razorpay monthly subscription (ADMIN)
+  createRazorpaySubscription: (planId: string) =>
+    api.post('/subscriptions/create-razorpay-subscription', { plan_id: planId }),
+
   // Invoices for own restaurant
   getInvoices: (params?: any) =>
     api.get('/invoices', { params }),
