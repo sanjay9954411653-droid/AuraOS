@@ -51,9 +51,9 @@ const Login: React.FC = () => {
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative z-10">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 group mb-16">
-          <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-[#3b82f6]/25">A</span>
-          <span className="text-lg font-bold tracking-tight">Aura<span className="text-[#3b82f6]">OS</span></span>
-        </Link>
+  <img src="/icon-512.png" alt="NF Restro" className="w-8 h-8 rounded-lg object-cover" />
+  <span className="text-lg font-bold tracking-tight">NF <span className="text-emerald-400">Restro</span></span>
+</Link>
 
         {/* Headline */}
         <div>
@@ -93,9 +93,9 @@ const Login: React.FC = () => {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <Link to="/" className="lg:hidden flex items-center gap-2.5 mb-8">
-            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm">A</span>
-            <span className="text-lg font-bold">Aura<span className="text-[#3b82f6]">OS</span></span>
-          </Link>
+  <img src="/icon-512.png" alt="NF Restro" className="w-8 h-8 rounded-lg object-cover" />
+  <span className="text-lg font-bold">NF <span className="text-emerald-400">Restro</span></span>
+</Link>
 
           {/* Glass card */}
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl p-8 sm:p-10">
