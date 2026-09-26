@@ -169,7 +169,7 @@ const PRICING_TIERS: PricingTier[] = [
 
 const FAQ_ITEMS: FAQItem[] = [
   { q: 'How long does onboarding take?', a: 'Most restaurants go live within 24 hours. We provide a guided setup wizard and optional 1-on-1 onboarding call.' },
-  { q: 'Do I need special hardware?', a: 'No. AuraOS runs on any modern browser. For the kitchen display, we recommend a tablet or a budget Android device mounted on the wall.' },
+  { q: 'Do I need special hardware?', a: 'No. NF Restro runs on any modern browser. For the kitchen display, we recommend a tablet or a budget Android device mounted on the wall.' },
   { q: 'Can I try before committing?', a: 'Yes. Every plan includes a 14-day free trial with no credit card required. You can upgrade or cancel anytime.' },
   { q: 'Does it integrate with Zomato & Swiggy?', a: 'Growth and Enterprise plans include aggregator menu sync. Orders from Zomato/Swiggy flow directly into your KDS.' },
   { q: 'Is my data secure?', a: 'All data is encrypted in transit (TLS 1.3) and at rest (AES-256). We run daily encrypted backups with a 30-day retention window.' },
@@ -265,7 +265,7 @@ const LandingPage: React.FC = () => {
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2.5 group">
               <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-[#3b82f6]/25 group-hover:shadow-[#3b82f6]/40 transition-shadow">A</span>
-              <span className="text-lg font-bold tracking-tight text-white">Aura<span className="text-[#3b82f6]">OS</span></span>
+              <span className="text-lg font-bold tracking-tight text-white">NF <span className="text-[#3b82f6]">Restro</span></span>
             </Link>
 
             {/* Desktop Nav */}
@@ -479,7 +479,7 @@ const LandingPage: React.FC = () => {
           <SectionHeading
             overline="Built for"
             title="Every type of restaurant"
-            subtitle="Fine dining, QSR, cloud kitchens, and cafés — AuraOS adapts to your workflow, not the other way around."
+            subtitle="Fine dining, QSR, cloud kitchens, and cafés — NF Restro adapts to your workflow, not the other way around."
           />
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {RESTAURANT_TYPES.map((rt) => (
@@ -634,7 +634,7 @@ const LandingPage: React.FC = () => {
           <SectionHeading
             overline="FAQ"
             title="Questions? We have answers."
-            subtitle="Everything you need to know about AuraOS."
+            subtitle="Everything you need to know about NF Restro"
           />
           <FAQAccordion items={FAQ_ITEMS} />
         </div>
@@ -653,7 +653,7 @@ const LandingPage: React.FC = () => {
               Ready to transform your restaurant?
             </h2>
             <p className="text-base text-slate-400 max-w-lg mx-auto mb-8">
-              Join hundreds of restaurants running on AuraOS. Start your free trial today — no credit card required.
+              Join hundreds of restaurants running on NF Restro. Start your free trial today — no credit card required.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
@@ -682,10 +682,10 @@ const LandingPage: React.FC = () => {
             <div className="col-span-2 md:col-span-1">
               <Link to="/" className="flex items-center gap-2.5 mb-4">
                 <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm">A</span>
-                <span className="text-lg font-bold tracking-tight text-white">Aura<span className="text-[#3b82f6]">OS</span></span>
+                <span className="text-lg font-bold tracking-tight text-white">NF<span className="text-[#3b82f6]">Restro</span></span>
               </Link>
               <p className="text-xs text-slate-500 leading-relaxed mb-4">The operating system for modern restaurants. QR ordering, KDS, inventory, and analytics — all in one platform.</p>
-              <p className="text-[11px] text-slate-600">© {new Date().getFullYear()} AuraOS. All rights reserved.</p>
+              <p className="text-[11px] text-slate-600">© {new Date().getFullYear()} NF Restro. All rights reserved.</p>
             </div>
 
             {/* Platform */}
