@@ -28,7 +28,7 @@ const LoginPage: React.FC = () => {
           <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-4">
             <span className="text-white font-bold text-3xl">A</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">AuraOS Waiter</h1>
+          <h1 className="text-2xl font-bold text-white">NF Restro Waiter</h1>
           <p className="text-indigo-200 text-sm mt-1">Sign in to start taking orders</p>
         </div>
 
