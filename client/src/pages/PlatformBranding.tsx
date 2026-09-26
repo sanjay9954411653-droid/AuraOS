@@ -82,7 +82,7 @@ const PlatformBranding: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Platform Branding</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          AuraOS's own logo, icon, and colors — used across the whole product
+          NF Restro's own logo, icon, and colors — used across the whole product
         </p>
       </div>
 
