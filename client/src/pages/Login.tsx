@@ -61,7 +61,7 @@ const Login: React.FC = () => {
             <span className="text-white">Welcome Back</span>
             <br />
             <span className="bg-gradient-to-r from-[#3b82f6] via-[#8b5cf6] to-[#ec4899] bg-clip-text text-transparent">
-              to AuraOS
+              to NF Restro
             </span>
           </h1>
           <p className="text-lg text-slate-400 leading-relaxed mb-12 max-w-md">
@@ -85,7 +85,7 @@ const Login: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <p className="text-slate-500 text-sm">© 2026 AuraOS. All rights reserved.</p>
+        <p className="text-slate-500 text-sm">© 2026 NF Restro. All rights reserved.</p>
       </div>
 
       {/* RIGHT SIDE — Login Form */}
