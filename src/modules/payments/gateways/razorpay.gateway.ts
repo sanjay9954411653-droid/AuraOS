@@ -150,3 +150,32 @@ export function verifyPaymentSignature(
     return false;
   }
 }
+export interface RazorpaySubscriptionResult {
+  razorpay_subscription_id: string;
+  razorpay_plan_id: string;
+  status: string;
+  short_url?: string;
+  key_id: string;
+}
+
+export async function createRazorpaySubscription(
+  planId: string,
+  customerNotify = true,
+): Promise<RazorpaySubscriptionResult> {
+  const rz = getRazorpay();
+
+  const subscription = await rz.subscriptions.create({
+    plan_id: planId,
+    total_count: 12,
+    quantity: 1,
+    customer_notify: customerNotify ? 1 : 0,
+  });
+
+  return {
+    razorpay_subscription_id: subscription.id,
+    razorpay_plan_id: subscription.plan_id,
+    status: subscription.status,
+    short_url: subscription.short_url,
+    key_id: env.RAZORPAY_KEY_ID,
+  };
+}
