@@ -116,7 +116,7 @@ export async function sendPasswordResetEmail(
 
   await sendEmail({
     to,
-    subject: 'Reset your AuraOS password',
+    subject: 'Reset your NF Restro password',
     html: `
       <!DOCTYPE html>
       <html>
@@ -136,7 +136,7 @@ export async function sendPasswordResetEmail(
       </head>
       <body>
         <div class="container">
-          <div class="logo">AuraOS</div>
+          <div class="logo">NF Restro</div>
           <h1>Reset your password</h1>
           <p>Hi ${name}, we received a request to reset your password.</p>
           <p>Click the button below or copy the token into the app:</p>
@@ -146,12 +146,12 @@ export async function sendPasswordResetEmail(
           <p>This link expires in <strong>${expiryMinutes} minutes</strong>.</p>
           <p>If you didn't request this, you can safely ignore this email. Your password won't change.</p>
           <div class="footer">
-            AuraOS Restaurant POS · This is an automated message, please do not reply.
+          NF Restro Restaurant POS · This is an automated message, please do not reply.
           </div>
         </div>
       </body>
       </html>
     `,
-    text: `Hi ${name},\n\nReset your AuraOS password:\n${resetUrl}\n\nOr enter this token: ${token}\n\nExpires in ${expiryMinutes} minutes.\n\nIf you didn't request this, ignore this email.`,
+    text: `Hi ${name},\n\nReset your NF Restro password:\n${resetUrl}\n\nOr enter this token: ${token}\n\nExpires in ${expiryMinutes} minutes.\n\nIf you didn't request this, ignore this email.`,
   });
 }
