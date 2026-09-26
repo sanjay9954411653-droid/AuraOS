@@ -165,6 +165,11 @@ export async function createRazorpaySubscription(
   const rz = getRazorpay();
 
   console.log('[Razorpay] Creating subscription with plan:', planId);
+  console.log(
+    '[Razorpay][DEBUG] Using key_id:',
+    JSON.stringify(env.RAZORPAY_KEY_ID), // JSON.stringify reveals any stray spaces/newlines
+    '| length:', env.RAZORPAY_KEY_ID.length,
+  );
   
   const subscription = await rz.subscriptions.create({
     plan_id: planId,
