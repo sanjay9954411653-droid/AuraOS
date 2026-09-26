@@ -1019,7 +1019,7 @@ const CustomerApp: React.FC = () => {
         <button
           onClick={() => handleAdd(item)}
           aria-label={`Add ${item.name}`}
-          className="w-9 h-9 rounded-full bg-[var(--accent)] hover:brightness-95 text-white flex items-center justify-center shrink-0 shadow-sm"
+          className="shrink-0 w-11 h-11 rounded-full bg-[var(--accent)] hover:brightness-95 text-white flex items-center justify-center shadow-lg ring-4 ring-white/80 transition-transform active:scale-95"
         >
           <PlusIcon className="w-5 h-5" />
         </button>
