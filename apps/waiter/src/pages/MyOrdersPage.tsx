@@ -92,10 +92,6 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
       toast.error('Each split amount must be greater than ₹0')
       return false
     }
-    if ((line.method === 'CARD' || line.method === 'UPI' || line.method === 'ONLINE') && !line.reference.trim()) {
-      toast.error(`Reference / transaction ID required for ${line.method}`)
-      return false
-    }
     return true
   }
 
@@ -109,10 +105,6 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
       }
       if (amount > total + 0.01) {
         toast.error(`Amount cannot exceed ${formatCurrency(total)}`)
-        return
-      }
-      if ((method === 'CARD' || method === 'UPI' || method === 'ONLINE') && !reference.trim()) {
-        toast.error('Reference / transaction ID required')
         return
       }
     } else {
@@ -257,7 +249,7 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
             {method !== 'CASH' && (
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">
-                  Transaction / Reference ID{method === 'CARD' ? ' *' : ''}
+                  Reference / UTR (optional)
                 </label>
                 <input
                   type="text"
@@ -335,7 +327,7 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
                   {line.method !== 'CASH' && (
                     <input
                       type="text"
-                      placeholder="Transaction / Reference ID"
+                      placeholder="Reference / UTR (optional)"
                       value={line.reference}
                       onChange={(e) => updateSplit(line.id, { reference: e.target.value })}
                       className="input text-sm"
