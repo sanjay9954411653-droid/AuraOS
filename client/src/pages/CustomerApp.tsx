@@ -1025,7 +1025,10 @@ const CustomerApp: React.FC = () => {
   }
 
   return (
-    <div style={accentStyle} className="min-h-screen bg-gray-50 pb-28">
+    <div
+  style={accentStyle}
+  className="min-h-screen bg-[color:color-mix(in_srgb,var(--accent)_5%,#f9fafb)] pb-28"
+>
       <CustomerMenuDrawer
         slug={slug}
         restaurantName={restaurantName}
@@ -1170,7 +1173,7 @@ const CustomerApp: React.FC = () => {
       <LiveOrderBanner orders={tracked.rows} onOpen={() => setOrdersView('ongoing')} />
 
       {/* ── Category chips (stick to the top while scrolling) ─────────────── */}
-      <div className="sticky top-0 z-20 mt-3 bg-gray-50/95 backdrop-blur border-b border-gray-200">
+      <div className="sticky top-0 z-20 mt-3 bg-white/90 backdrop-blur border-b border-[color:color-mix(in_srgb,var(--accent)_15%,#e5e7eb)]">
         <div className="max-w-2xl mx-auto px-4 pt-2.5 flex gap-2">
           {DIET_OPTIONS.map((opt) => (
             <button
@@ -1217,7 +1220,7 @@ const CustomerApp: React.FC = () => {
               {featuredItems.map((item) => (
                 <div
                   key={item.id}
-                  className="snap-start shrink-0 w-64 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+                  className="snap-start shrink-0 w-64 bg-white rounded-2xl shadow-md border border-[color:color-mix(in_srgb,var(--accent)_15%,#f3f4f6)] overflow-hidden"
                 >
                   <div className="relative">
                     <img
@@ -1259,7 +1262,7 @@ const CustomerApp: React.FC = () => {
               {selectedCategory === 'ALL' && (
                 <h2 className="text-lg font-bold text-gray-900 mb-2">{sec.name}</h2>
               )}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100 overflow-hidden">
+              <div className="bg-white rounded-2xl border border-[color:color-mix(in_srgb,var(--accent)_12%,#f3f4f6)] shadow-sm divide-y divide-gray-100 overflow-hidden">
                 {sec.list.map(renderRow)}
               </div>
             </section>
