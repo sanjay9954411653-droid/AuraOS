@@ -104,7 +104,7 @@ export function SiteFooter({ config }: { config: SiteConfig }) {
         </div>
       ) : null}
       <p className="opacity-70">
-        {restaurant.name} · Powered by AuraOS
+        {restaurant.name} · Powered by NF Restro
       </p>
     </footer>
   );
