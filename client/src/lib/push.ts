@@ -59,7 +59,9 @@ export async function enablePushNotifications(): Promise<boolean> {
     return false
   }
 
-  const registration = await navigator.serviceWorker.ready
+  const registration = await navigator.serviceWorker.register('/push-sw.js', {
+  scope: '/push/',
+})
 
   let subscription = await registration.pushManager.getSubscription()
 
@@ -81,7 +83,9 @@ export async function enablePushNotifications(): Promise<boolean> {
 export async function disablePushNotifications(): Promise<void> {
   if (!getPushSupport()) return
 
-  const registration = await navigator.serviceWorker.ready
+  const registration = await navigator.serviceWorker.register('/push-sw.js', {
+  scope: '/push/',
+})
 
   const subscription = await registration.pushManager.getSubscription()
 
