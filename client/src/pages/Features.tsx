@@ -76,7 +76,7 @@ const FEATURE_DEFS: FeatureDef[] = [
   {
     key: 'zomato',
     label: 'Zomato Integration',
-    description: 'Receive and manage Zomato orders directly in AuraOS.',
+    description: 'Receive and manage Zomato orders directly in NF Restro.',
     icon: BuildingStorefrontIcon,
     iconColor: 'text-red-600 bg-red-50',
   },
@@ -146,7 +146,7 @@ const Features: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Set up how AuraOS opens and which modules are active for this restaurant.
+          Set up how NF Restro opens and which modules are active for this restaurant.
         </p>
       </div>
 
