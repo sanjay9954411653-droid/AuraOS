@@ -212,10 +212,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
         <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/15 shadow-lg">
-          <img src="/icon-512.png" alt="AuraOS" className="w-full h-full object-cover" />
+          <img src="/icon-512.png" alt="NF Restro" className="w-full h-full object-cover" />
         </div>
         <div>
-                    <p className="font-bold text-white text-base leading-none tracking-tight">NF Cred OS</p>
+                    <p className="font-bold text-white text-base leading-none tracking-tight">NF Restro</p>
           <p className="text-[11px] text-navy-300 mt-1 font-medium">Restaurant Platform</p>
         </div>
       </div>
@@ -439,9 +439,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </button>
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg overflow-hidden ring-1 ring-slate-200">
-              <img src="/icon-512.png" alt="AuraOS" className="w-full h-full object-cover" />
+              <img src="/icon-512.png" alt="NF Restro" className="w-full h-full object-cover" />
             </div>
-                       <span className="font-bold text-slate-900 text-sm tracking-tight">NF Cred OS</span>
+                       <span className="font-bold text-slate-900 text-sm tracking-tight">NF Restro</span>
           </div>
         </header>
 
