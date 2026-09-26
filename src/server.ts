@@ -86,7 +86,7 @@ async function startServer() {
 
     httpServer.listen(PORT, () => {
       console.log('\n╔═════════════════════════════════════════════╗');
-      console.log('║       🚀 AuraOS Server Started              ║');
+      console.log('║       🚀 NF Restro Server Started              ║');
       console.log('╚═════════════════════════════════════════════╝\n');
       console.log(`Port: ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV}`);
