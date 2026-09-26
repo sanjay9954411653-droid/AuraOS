@@ -987,13 +987,16 @@ const CustomerApp: React.FC = () => {
   const renderRow = (item: MenuItem) => {
     const hasModifiers = itemModifierGroups[item.id] && itemModifierGroups[item.id].length > 0
     return (
-      <div key={item.id} className="flex items-center gap-3 p-3">
+      <div
+  key={item.id}
+  className="flex items-center gap-3 p-4 transition-colors hover:bg-[color:color-mix(in_srgb,var(--accent)_3%,#ffffff)]"
+>
         {item.image_url && (
           <img
             src={optimizeImageUrl(item.image_url, 200)}
             alt={item.name}
             loading="lazy"
-            className="w-16 h-16 rounded-xl object-cover shrink-0 bg-gray-100"
+            className="w-16 h-16 rounded-2xl object-cover shrink-0 bg-gray-100 shadow-sm ring-1 ring-black/5"
             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
         )}
@@ -1002,7 +1005,7 @@ const CustomerApp: React.FC = () => {
             {item.is_vegetarian && vegDot}
             <h3 className="font-semibold text-gray-900 text-sm">{item.name}</h3>
             {hasModifiers && (
-              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">Customisable</span>
+              <span className="text-[10px] bg-[color:color-mix(in_srgb,var(--accent)_10%,#ffffff)] text-[color:var(--accent)] px-1.5 py-0.5 rounded-full font-medium">Customisable</span>
             )}
           </div>
           {item.description && (
