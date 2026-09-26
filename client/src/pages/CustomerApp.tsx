@@ -1222,8 +1222,12 @@ const CustomerApp: React.FC = () => {
                   key={item.id}
                   className="snap-start shrink-0 w-64 bg-white rounded-2xl shadow-md border border-[color:color-mix(in_srgb,var(--accent)_15%,#f3f4f6)] overflow-hidden"
                 >
-                  <div className="relative">
-                    <img
+                <div className="relative">
+  <span className="absolute top-3 left-3 z-10 bg-white/95 backdrop-blur-sm text-[color:var(--accent)] text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm">
+    ✨ Featured
+  </span>
+
+  <img
                       src={optimizeImageUrl(item.image_url, 600)}
                       alt={item.name}
                       loading="lazy"
@@ -1233,12 +1237,12 @@ const CustomerApp: React.FC = () => {
                     <button
                       onClick={() => handleAdd(item)}
                       aria-label={`Add ${item.name}`}
-                      className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-[var(--accent)] hover:brightness-95 text-white flex items-center justify-center shadow-lg"
+                      className="absolute bottom-3 right-3 w-11 h-11 rounded-full bg-[var(--accent)] hover:brightness-95 text-white flex items-center justify-center shadow-lg ring-4 ring-white/80 transition-transform active:scale-95"
                     >
                       <PlusIcon className="w-5 h-5" />
                     </button>
                   </div>
-                  <div className="p-3">
+                  <div className="p-4">
                     <div className="flex items-center gap-1.5">
                       {item.is_vegetarian && vegDot}
                       <h3 className="font-semibold text-gray-900 text-sm truncate">{item.name}</h3>
