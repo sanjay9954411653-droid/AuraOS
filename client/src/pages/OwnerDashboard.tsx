@@ -59,7 +59,7 @@ const OwnerDashboard: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Platform Admin</h1>
-          <p className="text-sm text-slate-500 mt-0.5">AuraOS Owner · Manage all restaurants</p>
+          <p className="text-sm text-slate-500 mt-0.5">NF Restro Owner · Manage all restaurants</p>
         </div>
       </div>
 
@@ -523,7 +523,7 @@ const CreateTab: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
             <p><span className="text-slate-500">Password:</span> <span className="font-mono">(as you entered)</span></p>
             <p><span className="text-slate-500">Login URL:</span> <span className="font-mono text-brand-600">http://your-domain/login</span></p>
           </div>
-          <p className="text-xs text-slate-400">Give these credentials to the restaurant owner. They can log in and start using AuraOS.</p>
+          <p className="text-xs text-slate-400">Give these credentials to the restaurant owner. They can log in and start using NF Restro.</p>
           <div className="flex gap-3 justify-center">
             <Button variant="primary" onClick={() => { setResult(null); setName(''); setEmail(''); setPassword(''); setAdminName('') }}>Create Another</Button>
             <Button variant="outline" onClick={onCreated}>View Restaurants</Button>
