@@ -48,7 +48,7 @@ class NotificationService:
                     severity=a.severity,
                     title=f"Anomaly: {a.type.replace('_', ' ').title()}",
                     detail=a.description,
-                    recommendation="Review the anomaly in the AuraOS dashboard for detailed analysis.",
+                    recommendation="Review the anomaly in the NF Restro dashboard for detailed analysis.",
                     metadata={
                         "metric": a.metric,
                         "current_value": a.current_value,
