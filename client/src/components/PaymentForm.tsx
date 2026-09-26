@@ -212,17 +212,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
       )
     }
 
-    if (
-      (method === 'CARD' ||
-        method === 'UPI' ||
-        method === 'ONLINE') &&
-      !reference.trim()
-    ) {
-      throw new Error(
-        'Reference / transaction ID is required'
-      )
-    }
-
     const res = await api.post('/payments', {
       order_id: selectedOrderId,
       amount,
@@ -283,19 +272,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
           splitRemaining
         )}`
       )
-    }
-
-    for (const payment of validPayments) {
-      if (
-        (payment.method === 'CARD' ||
-          payment.method === 'UPI' ||
-          payment.method === 'ONLINE') &&
-        !payment.reference.trim()
-      ) {
-        throw new Error(
-          `Reference / transaction ID required for ${payment.method}`
-        )
-      }
     }
 
     let lastPayment: Payment | null = null
@@ -660,7 +636,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   method ===
                     'ONLINE') && (
                   <Input
-                    label="Reference / Transaction ID"
+                    label="Reference / Transaction ID (optional)"
                     placeholder="e.g. TXN123456"
                     value={
                       reference
@@ -670,7 +646,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                         e.target.value
                       )
                     }
-                    required
                     fullWidth
                   />
                 )}
@@ -836,7 +811,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                             'ONLINE') && (
                           <div className="mt-3">
                             <Input
-                              label="Reference / Transaction ID"
+                              label="Reference / Transaction ID (optional)"
                               placeholder="e.g. TXN123456"
                               value={
                                 payment.reference
@@ -851,7 +826,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                                     .value
                                 )
                               }
-                              required
                               fullWidth
                             />
                           </div>
