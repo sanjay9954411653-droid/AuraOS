@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const r = config?.restaurant;
 
   if (!r) {
-    return { title: 'AuraOS Restaurants', description: 'Powered by AuraOS' };
+    return { title: 'NF Restro Restaurants', description: 'Powered by NF Restro' };
   }
 
   const title = r.tagline ? `${r.name} — ${r.tagline}` : r.name;
