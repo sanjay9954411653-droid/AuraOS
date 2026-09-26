@@ -7,6 +7,13 @@ import { ClockIcon, CheckCircleIcon, WifiIcon, ExclamationCircleIcon, PrinterIco
 import { formatElapsed } from '../lib/utils'
 import { printKOT } from '../components/PrintKOT'
 import {
+  enablePushNotifications,
+  disablePushNotifications,
+  getPushStatus,
+  getPushSupport,
+  type PushStatus,
+} from '../lib/push'
+import {
   connectUSB,
   connectBluetooth,
   silentReconnectUSB,
@@ -68,11 +75,32 @@ const Kitchen: React.FC = () => {
   const [printer, setPrinter] = useState<PrinterKind | null>(null)
   const [showPrinterMenu, setShowPrinterMenu] = useState(false)
   const [autoPrint, setAutoPrint] = useState(() => localStorage.getItem(AUTO_PRINT_KEY) !== 'off')
+  const [pushStatus, setPushStatus] = useState<PushStatus>('default')
+const [pushBusy, setPushBusy] = useState(false)
   const seenOrderIds = useRef<Set<string> | null>(null) // null = first load not done yet
   // Track delayed order IDs so we can highlight them on the card
   const [delayedOrderIds, setDelayedOrderIds] = useState<Set<string>>(new Set())
   const audioRef = useRef<HTMLAudioElement>(null)
   const { on, off, isConnected } = useSocket()
+
+  useEffect(() => {
+  setPushStatus(getPushStatus())
+}, [])
+  const handleTogglePush = async () => {
+  setPushBusy(true)
+
+  try {
+    if (pushStatus === 'granted') {
+      await disablePushNotifications()
+      setPushStatus('default')
+    } else {
+      const ok = await enablePushNotifications()
+      setPushStatus(ok ? 'granted' : getPushStatus())
+    }
+  } finally {
+    setPushBusy(false)
+  }
+  }
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -384,6 +412,33 @@ const Kitchen: React.FC = () => {
             )}
           </div>
 
+                    {getPushSupport() && (
+            <button
+              onClick={handleTogglePush}
+              disabled={pushBusy || pushStatus === 'denied'}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                pushStatus === 'granted'
+                  ? 'bg-emerald-700 text-white'
+                  : pushStatus === 'denied'
+                  ? 'bg-red-900 text-red-300 cursor-not-allowed'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+              title={
+                pushStatus === 'denied'
+                  ? 'Notifications are blocked in browser settings'
+                  : 'Toggle kitchen order notifications'
+              }
+            >
+              {pushBusy
+                ? 'Notifications…'
+                : pushStatus === 'granted'
+                ? '🔔 Notifications ON'
+                : pushStatus === 'denied'
+                ? '🔕 Notifications Blocked'
+                : '🔕 Notifications OFF'}
+            </button>
+          )}
+          
           <button
             onClick={fetchOrders}
             className="px-3 py-1.5 text-xs font-medium bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
