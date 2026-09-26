@@ -101,7 +101,7 @@ const EnvSchema = z.object({
   SMTP_SECURE: z.string().default('false').transform((v) => v === 'true'),
   SMTP_USER:   z.string().optional().default(''),
   SMTP_PASS:   z.string().optional().default(''),
-  EMAIL_FROM:  z.string().optional().default('AuraOS <no-reply@auraos.local>'),
+  EMAIL_FROM:  z.string().optional().default('NF Restro <no-reply@auraos.local>'),
   // Base URL of the frontend app (used in reset email links)
   APP_URL:     z.string().optional().default('http://localhost:3001'),
 
