@@ -44,7 +44,7 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'AuraOS Waiter',
+        name: 'NF Restro Waiter',
         short_name: 'Waiter',
         description: 'Take orders, manage tables, track status',
         theme_color: '#0f1f3d',
