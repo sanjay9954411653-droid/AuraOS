@@ -342,7 +342,7 @@ const [pushBusy, setPushBusy] = useState(false)
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
           {/* Connection */}
           <div className="flex items-center gap-1.5">
             {isConnected ? (
