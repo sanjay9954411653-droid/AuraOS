@@ -164,6 +164,8 @@ export async function createRazorpaySubscription(
 ): Promise<RazorpaySubscriptionResult> {
   const rz = getRazorpay();
 
+  console.log('[Razorpay] Creating subscription with plan:', planId);
+  
   const subscription = await rz.subscriptions.create({
     plan_id: planId,
     total_count: 12,
