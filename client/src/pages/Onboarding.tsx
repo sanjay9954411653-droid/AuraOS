@@ -117,9 +117,9 @@ const Onboarding: React.FC = () => {
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 to-purple-700 flex-col justify-between p-12">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl overflow-hidden bg-white/10">
-            <img src="/icon-512.png" alt="AuraOS" className="w-full h-full object-cover" />
+            <img src="/icon-512.png" alt="NF Restro" className="w-full h-full object-cover" />
           </div>
-          <span className="text-white font-bold text-xl">AuraOS</span>
+          <span className="text-white font-bold text-xl">NF Restro</span>
         </div>
         <div>
           <h1 className="text-4xl font-bold text-white leading-tight mb-4">
@@ -137,7 +137,7 @@ const Onboarding: React.FC = () => {
             ))}
           </div>
         </div>
-        <p className="text-indigo-300 text-sm">© 2026 AuraOS. All rights reserved.</p>
+        <p className="text-indigo-300 text-sm">© 2026 NF Restro. All rights reserved.</p>
       </div>
 
       {/* Right panel — form */}
@@ -146,9 +146,9 @@ const Onboarding: React.FC = () => {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
             <div className="w-8 h-8 rounded-lg overflow-hidden">
-              <img src="/icon-512.png" alt="AuraOS" className="w-full h-full object-cover" />
+              <img src="/icon-512.png" alt="NF Restro" className="w-full h-full object-cover" />
             </div>
-            <span className="font-bold text-gray-900 text-lg">AuraOS</span>
+            <span className="font-bold text-gray-900 text-lg">NF Restro</span>
           </div>
 
           {/* Step indicator */}
