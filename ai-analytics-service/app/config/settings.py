@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     )
 
     # ── Server ──────────────────────────────────────────────────────────────
-    APP_NAME: str = "AuraOS AI Analytics"
+    APP_NAME: str = "NF Restro AI Analytics"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
     HOST: str = "0.0.0.0"
@@ -158,7 +158,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = "AuraOS Insights <insights@auraos.com>"
+    SMTP_FROM: str = "NF Restro Insights <insights@auraos.com>"
 
     # ── Webhook Notifications ─────────────────────────────────────────────────
     WEBHOOK_URL: str = ""
