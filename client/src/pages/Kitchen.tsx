@@ -330,7 +330,7 @@ const [pushBusy, setPushBusy] = useState(false)
       </audio>
 
       {/* Header */}
-      <header className="bg-gray-900 border-b-2 border-indigo-500 px-6 py-4 flex items-center justify-between shrink-0">
+      <header className="bg-gray-900 border-b-2 border-indigo-500 px-3 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
         <div>
           <h1 className="text-2xl font-bold tracking-wider text-white">KITCHEN DISPLAY</h1>
           <p className="text-gray-400 text-sm mt-0.5">
