@@ -18,8 +18,8 @@ export async function GET() {
     : [];
 
   const manifest = {
-    name: r?.name || 'AuraOS Restaurant',
-    short_name: r?.name?.slice(0, 12) || 'AuraOS',
+    name: r?.name || 'NF Restro Restaurant',
+    short_name: r?.name?.slice(0, 12) || 'NF Restro',
     description: r?.tagline || r?.description || 'Order online',
     start_url: '/',
     display: 'standalone',
