@@ -42,10 +42,14 @@ class PushService {
   payload: PushPayload,
   roles?: Array<'ADMIN' | 'WAITER' | 'RECEPTION' | 'KITCHEN'>,
 ): Promise<void> {
-    if (!pushEnabled) return;
+    if (!pushEnabled) {
+      // eslint-disable-next-line no-console
+      console.log('Push: skipped — VAPID keys not configured (pushEnabled=false)');
+      return;
+    }
 
     const result = await query(
-      `SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth
+      `SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth, u.role
  FROM push_subscriptions ps
  JOIN users u ON u.id = ps.user_id
  WHERE ps.restaurant_id = $1
@@ -53,24 +57,35 @@ class PushService {
    AND u.is_active = true`,
      [restaurantId, roles && roles.length > 0 ? roles : null],
     );
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `Push: restaurant=${restaurantId} roles=${roles ? roles.join(',') : 'ANY'} tag=${payload.tag ?? ''} matched ${result.rows.length} subscription(s)` +
+      (result.rows.length ? ` [${result.rows.map((r) => r.role).join(', ')}]` : ''),
+    );
     if (result.rows.length === 0) return;
 
     const body = JSON.stringify(payload);
 
     await Promise.all(
       result.rows.map(async (row) => {
+        const tail = row.endpoint.slice(-16);
         try {
           await webpush.sendNotification(
             { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
             body,
           );
+          // eslint-disable-next-line no-console
+          console.log(`Push: delivered OK to ...${tail} (role ${row.role})`);
         } catch (err: any) {
           if (err?.statusCode === 404 || err?.statusCode === 410) {
             // Subscription is dead (browser data cleared, app uninstalled, etc.)
+            // eslint-disable-next-line no-console
+            console.log(`Push: dead subscription ...${tail} (status ${err.statusCode}) — removing`);
             await query(`DELETE FROM push_subscriptions WHERE id = $1`, [row.id]).catch(() => {});
           } else {
             // eslint-disable-next-line no-console
-            console.error('Push send failed:', err?.message || err);
+            console.error(`Push: FAILED to ...${tail} — status=${err?.statusCode} ${err?.message || err}`);
           }
         }
       }),
