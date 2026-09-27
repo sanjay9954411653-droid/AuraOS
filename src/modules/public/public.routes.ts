@@ -275,7 +275,7 @@ async function createTableRequest(
         body: `Table ${table.table_number} ${type === 'CALL_WAITER' ? 'needs a waiter' : 'wants the bill'}`,
         tag: `table-request-${table.id}`,
         data: { requestId: insertResult.rows[0].id, type, tableNumber: table.table_number },
-      })
+      }, ['WAITER', 'RECEPTION'])
       .catch((err) => console.error('Push notify failed:', err?.message || err));
 
     res.status(201).json(successResponse({ requested: true }));
