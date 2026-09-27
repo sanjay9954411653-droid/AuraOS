@@ -195,7 +195,17 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
     `)
     win.document.close()
     win.focus()
-    setTimeout(() => { win.print(); win.close() }, 300)
+
+    // Wait for the stylesheet above to actually finish loading before
+    // printing — printing (or closing the window) too early can produce a
+    // PDF with none of the styling applied yet, which is exactly the
+    // "everything squished together" bug.
+    const triggerPrint = () => { win.print() }
+    if (win.document.readyState === 'complete') {
+      setTimeout(triggerPrint, 200)
+    } else {
+      win.addEventListener('load', () => setTimeout(triggerPrint, 200))
+    }
   }
 
   if (loading) return (
