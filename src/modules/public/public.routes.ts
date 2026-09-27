@@ -718,6 +718,24 @@ router.post('/order/:slug', publicOrderRateLimiter, async (req: Request, res: Re
       } else {
         eventBroadcaster?.broadcastOrderCreated(broadcastPayload);
       }
+
+      // Real OS-level push to kitchen devices — this is what rings/lights up
+      // the screen even if the Kitchen Display tab isn't open or the screen
+      // is asleep. The socket broadcast above only updates an already-open tab.
+      pushService
+        .sendToRestaurant(
+          restaurantId,
+          {
+            title: existingOrder ? '🔔 Items added to an order' : '🔔 New order',
+            body: existingOrder
+              ? `More items added to order ${order.order_number}`
+              : `Order ${order.order_number} received in the kitchen`,
+            tag: `new-order-${order.id}`,
+            data: { url: '/kitchen', orderId: order.id },
+          },
+          ['KITCHEN'],
+        )
+        .catch((err) => console.error('Kitchen push notify failed:', err?.message || err));
     }
 
     res.status(201).json(
