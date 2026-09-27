@@ -44,7 +44,7 @@ pushService
       tag: `new-order-${result.order.id}`,
       data: { url: '/kitchen', orderId: result.order.id },
     },
-    
+    ['KITCHEN'],
   )
   .catch((err) => console.error('Kitchen push notify failed:', err?.message || err));
       res.status(201).json(successResponse(result, { message: 'Order created successfully' }));
@@ -292,7 +292,7 @@ pushService
             body: `Round ${result.roundReady.round} of ${result.roundReady.order_number} is ready to serve`,
             tag: `ready-${orderId}-${result.roundReady.round}`,
             data: { url: '/orders' },
-          })
+          }, ['WAITER', 'RECEPTION'])
           .catch(() => {});
       }
 
