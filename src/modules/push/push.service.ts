@@ -29,16 +29,18 @@ class PushService {
   }
 
   /**
-   * Push a notification to every staff device subscribed for this
-   * restaurant (e.g. all waiters who've enabled notifications). Silently
-   * does nothing if VAPID keys aren't configured. Expired/invalid
-   * subscriptions (410/404 from the push service, e.g. the app was
-   * uninstalled) are cleaned up automatically.
+   * Push a notification to staff devices subscribed for this restaurant.
+   * Pass `roles` to target only certain staff roles (e.g. only KITCHEN
+   * devices for a new order, only WAITER/RECEPTION for an order going
+   * READY) — omit it to send to every subscribed device regardless of
+   * role. Silently does nothing if VAPID keys aren't configured.
+   * Expired/invalid subscriptions (410/404 from the push service, e.g.
+   * the app was uninstalled) are cleaned up automatically.
    */
   async sendToRestaurant(
   restaurantId: string,
   payload: PushPayload,
-  role?: 'ADMIN' | 'WAITER' | 'RECEPTION' | 'KITCHEN',
+  roles?: Array<'ADMIN' | 'WAITER' | 'RECEPTION' | 'KITCHEN'>,
 ): Promise<void> {
     if (!pushEnabled) return;
 
@@ -47,9 +49,9 @@ class PushService {
  FROM push_subscriptions ps
  JOIN users u ON u.id = ps.user_id
  WHERE ps.restaurant_id = $1
-   AND ($2::user_role IS NULL OR u.role = $2::user_role)
+   AND ($2::user_role[] IS NULL OR u.role = ANY($2::user_role[]))
    AND u.is_active = true`,
-     [restaurantId, role ?? null],
+     [restaurantId, roles && roles.length > 0 ? roles : null],
     );
     if (result.rows.length === 0) return;
 
