@@ -161,8 +161,23 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
     const content = printRef.current.innerHTML
     const win = window.open('', '_blank', 'width=400,height=700')
     if (!win) return
+
+    // Pull in the app's real stylesheet so the classes used in the preview
+    // (spacing, sizing, alignment) actually render here — without this the
+    // print window has no matching CSS and every row collapses with no gap.
+    const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map((el) => {
+        if (el.tagName === 'LINK') {
+          const href = new URL((el as HTMLLinkElement).href, window.location.origin).href
+          return `<link rel="stylesheet" href="${href}">`
+        }
+        return el.outerHTML
+      })
+      .join('\n')
+
     win.document.write(`
       <html><head><title>Bill</title>
+      ${styleTags}
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; padding: 8px; }
