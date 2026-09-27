@@ -83,10 +83,21 @@ const [pushBusy, setPushBusy] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
   const { on, off, isConnected } = useSocket()
 
+  const [showBlockedHelp, setShowBlockedHelp] = useState(false)
+
   useEffect(() => {
   setPushStatus(getPushStatus())
 }, [])
   const handleTogglePush = async () => {
+  // Browsers never let a page re-request a permission it was explicitly
+  // denied — only the person can undo that from the browser's own site
+  // settings. So instead of doing nothing (or being unclickable, which is
+  // invisible on a touchscreen kitchen tablet), show them how.
+  if (pushStatus === 'denied') {
+    setShowBlockedHelp(true)
+    return
+  }
+
   setPushBusy(true)
 
   try {
@@ -415,17 +426,17 @@ const [pushBusy, setPushBusy] = useState(false)
                     {getPushSupport() && (
             <button
               onClick={handleTogglePush}
-              disabled={pushBusy || pushStatus === 'denied'}
+              disabled={pushBusy}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                 pushStatus === 'granted'
                   ? 'bg-emerald-700 text-white'
                   : pushStatus === 'denied'
-                  ? 'bg-red-900 text-red-300 cursor-not-allowed'
+                  ? 'bg-red-900 text-red-300'
                   : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
               }`}
               title={
                 pushStatus === 'denied'
-                  ? 'Notifications are blocked in browser settings'
+                  ? 'Tap for how to unblock notifications'
                   : 'Toggle kitchen order notifications'
               }
             >
@@ -434,9 +445,44 @@ const [pushBusy, setPushBusy] = useState(false)
                 : pushStatus === 'granted'
                 ? '🔔 Notifications ON'
                 : pushStatus === 'denied'
-                ? '🔕 Notifications Blocked'
+                ? '🔕 Notifications Blocked — tap to fix'
                 : '🔕 Notifications OFF'}
             </button>
+          )}
+
+          {showBlockedHelp && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+              onClick={() => setShowBlockedHelp(false)}
+            >
+              <div
+                className="max-w-sm w-full bg-gray-900 border border-gray-700 rounded-xl p-5 text-sm text-gray-200 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-base font-bold text-white mb-2">Notifications are blocked</h3>
+                <p className="text-gray-400 mb-3">
+                  This browser was told to block notifications for this page, and no
+                  website can undo that itself — it has to be changed in the browser.
+                </p>
+                <p className="font-semibold text-white mb-1">On this Android tablet (Chrome):</p>
+                <ol className="list-decimal list-inside space-y-1 text-gray-300 mb-4">
+                  <li>Tap the <span className="text-white">🔒 / ⓘ</span> icon left of the address bar</li>
+                  <li>Tap <span className="text-white">Permissions</span> → <span className="text-white">Notifications</span></li>
+                  <li>Set it to <span className="text-white">Allow</span></li>
+                  <li>Reload this page</li>
+                </ol>
+                <p className="text-gray-500 text-xs mb-4">
+                  Not listed there? Chrome menu (⋮) → Settings → Site settings →
+                  Notifications → find this site → Allow.
+                </p>
+                <button
+                  onClick={() => setShowBlockedHelp(false)}
+                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
           )}
           
           <button
