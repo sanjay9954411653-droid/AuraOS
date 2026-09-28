@@ -52,6 +52,7 @@ export class ModifierRepository {
       min_select: number;
       max_select: number;
       sort_order: number;
+      is_active: boolean;
     }>,
   ): Promise<ModifierGroup | null> {
     const fields: string[] = [];
@@ -77,6 +78,10 @@ export class ModifierRepository {
     if (updates.sort_order !== undefined) {
       fields.push(`sort_order = $${paramIndex++}`);
       values.push(updates.sort_order);
+    }
+    if (updates.is_active !== undefined) {
+      fields.push(`is_active = $${paramIndex++}`);
+      values.push(updates.is_active);
     }
 
     if (fields.length === 0) {
@@ -154,6 +159,7 @@ export class ModifierRepository {
       name: string;
       price_adjustment: number;
       sort_order: number;
+      is_active: boolean;
     }>,
   ): Promise<ModifierOption | null> {
     const fields: string[] = [];
@@ -171,6 +177,10 @@ export class ModifierRepository {
     if (updates.sort_order !== undefined) {
       fields.push(`sort_order = $${paramIndex++}`);
       values.push(updates.sort_order);
+    }
+    if (updates.is_active !== undefined) {
+      fields.push(`is_active = $${paramIndex++}`);
+      values.push(updates.is_active);
     }
 
     if (fields.length === 0) {
