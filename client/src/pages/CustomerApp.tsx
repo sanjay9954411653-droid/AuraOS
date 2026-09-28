@@ -199,6 +199,12 @@ const CustomerApp: React.FC = () => {
   const [search, setSearch] = useState('')
   const [cart, setCart] = useState<CartLine[]>(() => loadSavedCart(cartStorageKey(slug, qrToken)))
 
+  // Coupon (customer-entered)
+  const [couponCode, setCouponCode] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null)
+  const [couponMsg, setCouponMsg] = useState('')
+  const [couponBusy, setCouponBusy] = useState(false)
+
   // Modifier selection modal
   const [modifierItem, setModifierItem] = useState<MenuItem | null>(null)
   const [modifierSelections, setModifierSelections] = useState<Record<string, string | string[]>>({})
@@ -468,7 +474,42 @@ const CustomerApp: React.FC = () => {
 
   const cartTotal = cart.reduce((s, c) => s + c.price * c.quantity, 0)
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0)
-  const bill = calcBill(cartTotal, billing)
+  const bill = calcBill(cartTotal, billing, appliedCoupon?.discount ?? 0)
+
+  // The discount depends on the cart total, so drop it if the cart changes.
+  useEffect(() => {
+    setAppliedCoupon(null)
+    setCouponMsg('')
+  }, [cartTotal])
+
+  const applyCoupon = async () => {
+    const code = couponCode.trim()
+    if (!code || cartTotal <= 0) return
+    setCouponBusy(true)
+    setCouponMsg('')
+    try {
+      const res = await publicApi.post(`/public/site/${slug}/coupon/validate`, { code, order_total: cartTotal })
+      const r = res.data.data
+      if (r?.valid) {
+        setAppliedCoupon({ code: r.code || code.toUpperCase(), discount: Number(r.discount || 0) })
+        setCouponMsg('')
+      } else {
+        setAppliedCoupon(null)
+        setCouponMsg(r?.message || 'Invalid coupon code')
+      }
+    } catch (err: any) {
+      setAppliedCoupon(null)
+      setCouponMsg(err.response?.data?.error?.message || 'Could not check the coupon — try again')
+    } finally {
+      setCouponBusy(false)
+    }
+  }
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null)
+    setCouponCode('')
+    setCouponMsg('')
+  }
 
   // ── Modifier selection helpers ─────────────────────────────────────────────
   const openModifierModal = (item: MenuItem) => {
@@ -593,6 +634,7 @@ const CustomerApp: React.FC = () => {
           })),
         })),
       }
+      if (appliedCoupon) body.coupon_code = appliedCoupon.code
       if (qrMode === 'restaurant') {
         if (tableId) body.table_id = tableId
         body.table_number = tableNumber || tables.find((t) => t.id === tableId)?.table_number
@@ -630,6 +672,8 @@ const CustomerApp: React.FC = () => {
       }
 
       setConfirmation({ ...data, payable_total: bill.grandTotal })
+      setAppliedCoupon(null)
+      setCouponCode('')
       setCart([])
       setCartOpen(false)
     } catch (err: any) {
@@ -1414,11 +1458,45 @@ const CustomerApp: React.FC = () => {
             </div>
 
             <div className="px-6 py-5 border-t border-gray-100 space-y-3">
+              {/* Coupon */}
+              {appliedCoupon ? (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-emerald-700 font-medium">Coupon {appliedCoupon.code} applied</span>
+                  <button type="button" onClick={removeCoupon} className="text-xs font-medium text-red-600 px-2 py-1">Remove</button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex gap-2">
+                    <input
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => { if (e.key === 'Enter') applyCoupon() }}
+                      placeholder="Have a coupon code?"
+                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={applyCoupon}
+                      disabled={couponBusy || !couponCode.trim()}
+                      className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50"
+                    >
+                      {couponBusy ? '…' : 'Apply'}
+                    </button>
+                  </div>
+                  {couponMsg && <p className="mt-1 text-xs text-red-600">{couponMsg}</p>}
+                </div>
+              )}
+
               {/* Summary */}
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between text-gray-500">
                   <span>Subtotal</span><span>{formatCurrency(cartTotal)}</span>
                 </div>
+                {appliedCoupon && bill.coupon > 0 && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Coupon ({appliedCoupon.code})</span><span>−{formatCurrency(bill.coupon)}</span>
+                  </div>
+                )}
                 {bill.discount > 0 && (
                   <div className="flex justify-between text-emerald-600">
                     <span>Discount ({billing.discount_percent}%)</span><span>−{formatCurrency(bill.discount)}</span>
