@@ -54,7 +54,7 @@ interface GroupFormData {
 
 interface OptionFormData {
   name: string
-  price_adjustment: number
+  price_adjustment: string // kept as text while typing so "-" and "." work; parsed on save
 }
 
 const defaultGroupForm: GroupFormData = {
@@ -66,7 +66,7 @@ const defaultGroupForm: GroupFormData = {
 
 const defaultOptionForm: OptionFormData = {
   name: '',
-  price_adjustment: 0,
+  price_adjustment: '',
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -158,16 +158,28 @@ const Modifiers: React.FC = () => {
 
   const handleGroupSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Single-select groups always allow exactly one pick; only "required or not" varies.
+    const groupPayload: GroupFormData =
+      groupForm.selection_type === 'single'
+        ? { ...groupForm, min_select: groupForm.min_select > 0 ? 1 : 0, max_select: 1 }
+        : groupForm
+
+    if (groupPayload.selection_type === 'multiple' && groupPayload.min_select > groupPayload.max_select) {
+      toast.error('Minimum selections cannot be more than maximum selections')
+      return
+    }
+
     setSavingGroup(true)
     try {
       if (editingGroup) {
-        const res = await api.put(`/modifiers/groups/${editingGroup.id}`, groupForm)
+        const res = await api.put(`/modifiers/groups/${editingGroup.id}`, groupPayload)
         setGroups((p) =>
           p.map((g) => (g.id === editingGroup.id ? { ...g, ...res.data.data } : g))
         )
         toast.success('Modifier group updated')
       } else {
-        const res = await api.post('/modifiers/groups', groupForm)
+        const res = await api.post('/modifiers/groups', groupPayload)
         setGroups((p) => [...p, res.data.data])
         toast.success('Modifier group created')
       }
@@ -204,17 +216,26 @@ const Modifiers: React.FC = () => {
     setEditingOption(option)
     setOptionForm({
       name: option.name,
-      price_adjustment: option.price_adjustment,
+      price_adjustment: String(option.price_adjustment ?? 0),
     })
     setOptionFormOpen(true)
   }
 
   const handleOptionSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const parsedPrice = parseFloat(optionForm.price_adjustment)
+    const optionPayload = {
+      name: optionForm.name.trim(),
+      price_adjustment: Number.isFinite(parsedPrice) ? parsedPrice : 0,
+    }
+    if (!optionPayload.name) {
+      toast.error('Option name is required')
+      return
+    }
     setSavingOption(true)
     try {
       if (editingOption) {
-        const res = await api.put(`/modifiers/options/${editingOption.id}`, optionForm)
+        const res = await api.put(`/modifiers/options/${editingOption.id}`, optionPayload)
         setGroups((p) =>
           p.map((g) => {
             if (g.id !== activeGroupId) return g
@@ -230,7 +251,7 @@ const Modifiers: React.FC = () => {
       } else {
         const res = await api.post(
           `/modifiers/groups/${activeGroupId}/options`,
-          optionForm
+          optionPayload
         )
         setGroups((p) =>
           p.map((g) => {
@@ -355,6 +376,9 @@ const Modifiers: React.FC = () => {
                       <Badge variant={group.selection_type === 'single' ? 'info' : 'purple'}>
                         {selectionTypeLabel(group.selection_type)}
                       </Badge>
+                      {group.selection_type === 'single' && group.min_select > 0 && (
+                        <Badge variant="warning">Required</Badge>
+                      )}
                       {!group.is_active && <Badge variant="default">Inactive</Badge>}
                     </div>
                     <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
@@ -415,7 +439,7 @@ const Modifiers: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {options
+                            {[...options]
                               .sort((a, b) => a.sort_order - b.sort_order)
                               .map((opt) => (
                                 <tr key={opt.id}>
@@ -524,18 +548,38 @@ const Modifiers: React.FC = () => {
             <label className="form-label">Selection Type</label>
             <select
               value={groupForm.selection_type}
-              onChange={(e) =>
-                setGroupForm({
-                  ...groupForm,
-                  selection_type: e.target.value as 'single' | 'multiple',
-                })
-              }
+              onChange={(e) => {
+                const type = e.target.value as 'single' | 'multiple'
+                setGroupForm((prev) =>
+                  type === 'single'
+                    ? { ...prev, selection_type: type, min_select: prev.min_select > 0 ? 1 : 0, max_select: 1 }
+                    : { ...prev, selection_type: type, max_select: Math.max(prev.max_select, 2) }
+                )
+              }}
               className="form-select w-full"
             >
-              <option value="single">Single Select — choose exactly one</option>
+              <option value="single">Single Select — customer picks one</option>
               <option value="multiple">Multiple Select — choose any number</option>
             </select>
           </div>
+          {groupForm.selection_type === 'single' && (
+            <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 w-4 h-4"
+                checked={groupForm.min_select > 0}
+                onChange={(e) =>
+                  setGroupForm({ ...groupForm, min_select: e.target.checked ? 1 : 0, max_select: 1 })
+                }
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-900">Required</span>
+                <span className="block text-xs text-gray-500">
+                  Customer must choose one option before adding the item (e.g. Size).
+                </span>
+              </span>
+            </label>
+          )}
           {groupForm.selection_type === 'multiple' && (
             <div className="grid grid-cols-2 gap-4">
               <Input
@@ -612,7 +656,7 @@ const Modifiers: React.FC = () => {
             onChange={(e) =>
               setOptionForm({
                 ...optionForm,
-                price_adjustment: parseFloat(e.target.value) || 0,
+                price_adjustment: e.target.value,
               })
             }
             hint="Extra charge for this option. Use negative value for discount."
