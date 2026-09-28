@@ -101,4 +101,10 @@ export const paymentsApi = {
     status?: 'PAID' | 'PENDING'
     reference_number?: string
   }) => api.post('/payments', payload),
+
+  // Bill grand total (GST + charges - coupon), amount already paid, and what is left
+  balance: (orderId: string) =>
+    api.get<{ success: boolean; data: { total: number; paid: number; balance: number } }>(
+      `/payments/order/${orderId}/balance`,
+    ),
 }
