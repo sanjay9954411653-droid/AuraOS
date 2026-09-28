@@ -5,6 +5,8 @@ import { menuRepository } from '@/modules/menu/menu.repository';
 import { paymentsRepository } from '@/modules/payments/payments.repository';
 import { inventoryRepository } from '@/modules/inventory/inventory.repository';
 import { restaurantsRepository } from '@/modules/restaurants/restaurants.repository';
+import { pool } from '@/config/database';
+import { getOrderPayableTotal } from '@/shared/billing';
 import {
   Order,
   OrderItem,
@@ -240,7 +242,11 @@ export class OrdersService {
     // confirmation). Creating a phantom CASH record while an online payment
     // is pending would leave the order double-paid once the webhook arrives.
     if (payload.status === 'COMPLETED') {
-      const orderTotal = Number(order.total_amount || 0);
+      const orderTotal = await getOrderPayableTotal(
+        pool,
+        restaurantId,
+        Number(order.total_amount || 0),
+      );
       if (orderTotal > 0) {
         const existingPayments = await paymentsRepository.findByOrderId(orderId);
 
