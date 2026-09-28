@@ -59,6 +59,10 @@ export const couponApi = {
   create: (data: Partial<Coupon>) => api.post('/coupons', data),
   update: (id: string, data: Partial<Coupon>) => api.patch(`/coupons/${id}`, data),
   remove: (id: string) => api.delete(`/coupons/${id}`),
+  // Staff: coupon on an open order (Bill / payment screen)
+  forOrder: (orderId: string) => api.get(`/coupons/order/${orderId}`),
+  applyToOrder: (orderId: string, code: string) => api.post('/coupons/apply', { order_id: orderId, code }),
+  removeFromOrder: (orderId: string) => api.delete(`/coupons/apply/${orderId}`),
 }
 
 export interface OwnerReview {

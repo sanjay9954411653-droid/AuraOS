@@ -46,10 +46,13 @@ export function normalizeBilling(raw: Partial<Record<keyof BillingSettings, unkn
   }
 }
 
-export function calcBill(rawSubtotal: number, s: BillingSettings) {
+export function calcBill(rawSubtotal: number, s: BillingSettings, couponDiscount = 0) {
   const { tax_rate: taxRate, tax_inclusive: inclusive } = s
-  const discount = (rawSubtotal * (s.discount_percent || 0)) / 100
-  const afterDiscount = rawSubtotal - discount
+  // Coupon comes off first, then the restaurant's own discount % applies to what is left.
+  const coupon = Math.min(Math.max(0, couponDiscount), rawSubtotal)
+  const base = rawSubtotal - coupon
+  const discount = (base * (s.discount_percent || 0)) / 100
+  const afterDiscount = base - discount
 
   let preTaxTotal: number
   let taxAmount: number
@@ -77,5 +80,5 @@ export function calcBill(rawSubtotal: number, s: BillingSettings) {
   const sgst = taxAmount / 2
   const grandTotal = preTaxTotal + serviceCharge + otherCharges + extra + taxAmount
 
-  return { subtotal: rawSubtotal, discount, serviceCharge, otherCharges, extra, taxAmount, cgst, sgst, grandTotal }
+  return { subtotal: rawSubtotal, discount, coupon, serviceCharge, otherCharges, extra, taxAmount, cgst, sgst, grandTotal }
 }
