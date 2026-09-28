@@ -19,11 +19,28 @@ interface CouponForm {
   min_order: string
   max_discount: string
   usage_limit: string
+  valid_until: string // yyyy-mm-dd, blank = never expires
 }
 
 const emptyForm: CouponForm = {
   code: '', description: '', discount_type: 'FLAT',
-  discount_value: '', min_order: '', max_discount: '', usage_limit: '',
+  discount_value: '', min_order: '', max_discount: '', usage_limit: '', valid_until: '',
+}
+
+// A coupon valid "until 30 Sep" should work through the END of 30 Sep (local time).
+function toDateInput(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+function endOfDayIso(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d, 23, 59, 59).toISOString()
+}
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 export default function Coupons() {
@@ -58,22 +75,34 @@ export default function Coupons() {
       min_order: String(c.min_order),
       max_discount: c.max_discount != null ? String(c.max_discount) : '',
       usage_limit: c.usage_limit != null ? String(c.usage_limit) : '',
+      valid_until: toDateInput(c.valid_until),
     })
     setShowForm(true)
   }
 
   async function save() {
-    if (!form.code.trim()) { toast.error('Code is required'); return }
+    const code = form.code.trim().toUpperCase()
+    const value = Number(form.discount_value)
+    if (!code) { toast.error('Code is required'); return }
+    if (/\s/.test(code)) { toast.error('Code cannot contain spaces'); return }
+    if (!(value > 0)) { toast.error('Discount must be more than 0'); return }
+    if (form.discount_type === 'PERCENT' && value > 100) { toast.error('A percent discount cannot be more than 100%'); return }
+    if (form.usage_limit && (!Number.isInteger(Number(form.usage_limit)) || Number(form.usage_limit) < 1)) {
+      toast.error('Usage limit must be a whole number, 1 or more'); return
+    }
     setSaving(true)
     try {
+      // Blank optional boxes are sent as null so they are really CLEARED
+      // (e.g. removing a usage limit you set earlier).
       const payload = {
-        code: form.code.trim().toUpperCase(),
-        description: form.description.trim() || undefined,
+        code,
+        description: form.description.trim() || null,
         discount_type: form.discount_type,
-        discount_value: Number(form.discount_value) || 0,
+        discount_value: value,
         min_order: Number(form.min_order) || 0,
-        max_discount: form.max_discount ? Number(form.max_discount) : undefined,
-        usage_limit: form.usage_limit ? Number(form.usage_limit) : undefined,
+        max_discount: form.discount_type === 'PERCENT' && form.max_discount ? Number(form.max_discount) : null,
+        usage_limit: form.usage_limit ? Number(form.usage_limit) : null,
+        valid_until: form.valid_until ? endOfDayIso(form.valid_until) : null,
       }
       if (editId) {
         await couponApi.update(editId, payload)
@@ -146,6 +175,7 @@ export default function Coupons() {
               <Field label="Max discount (₹)" value={form.max_discount} onChange={(v) => setForm({ ...form, max_discount: v })} type="number" />
             ) : null}
             <Field label="Usage limit (blank = unlimited)" value={form.usage_limit} onChange={(v) => setForm({ ...form, usage_limit: v })} type="number" />
+            <Field label="Valid until (blank = never expires)" value={form.valid_until} onChange={(v) => setForm({ ...form, valid_until: v })} type="date" />
           </div>
           <div className="flex gap-2">
             <Button variant="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
@@ -170,11 +200,15 @@ export default function Coupons() {
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-gray-900">{c.code}</span>
                   {!c.is_active ? <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Inactive</span> : null}
+                  {c.valid_until && new Date(c.valid_until) < new Date()
+                    ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-600">Expired</span>
+                    : null}
                 </div>
                 <p className="mt-1 text-sm text-gray-600">
                   {c.discount_type === 'PERCENT' ? `${c.discount_value}% off` : `₹${c.discount_value} off`}
                   {Number(c.min_order) > 0 ? ` · Min ₹${Number(c.min_order).toFixed(0)}` : ''}
                   {c.usage_limit != null ? ` · ${c.used_count}/${c.usage_limit} used` : ` · ${c.used_count} used`}
+                  {c.valid_until ? ` · Until ${formatDate(c.valid_until)}` : ''}
                 </p>
                 {c.description ? <p className="mt-0.5 text-sm text-gray-400">{c.description}</p> : null}
               </div>

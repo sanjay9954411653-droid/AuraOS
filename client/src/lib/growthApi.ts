@@ -49,6 +49,7 @@ export interface Coupon {
   max_discount: number | null
   usage_limit: number | null
   used_count: number
+  valid_from?: string | null
   valid_until: string | null
   is_active: boolean
 }

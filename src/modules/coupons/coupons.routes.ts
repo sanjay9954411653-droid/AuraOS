@@ -16,10 +16,11 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { query, withTenant } from '@/config/database';
 import { successResponse } from '@/shared/utils/responseHandler';
-import { NotFoundError } from '@/shared/errors/AppError';
+import { NotFoundError, ConflictError, BadRequestError } from '@/shared/errors/AppError';
 import { authenticate, AuthenticatedRequest } from '@/shared/middleware/authenticate';
 import { authorize } from '@/shared/middleware/authorize';
 import { checkSubscription } from '@/shared/middleware/checkSubscription';
+import { couponRuleError, buildCouponUpdate } from './coupons.rules';
 
 /**
  * Pure discount calculation, shared by the public validate endpoint and order
@@ -104,22 +105,36 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response, n
   } catch (err) { next(err); }
 });
 
-const CouponSchema = z.object({
-  code: z.string().min(1).max(40),
-  description: z.string().max(255).optional(),
+// Optional fields accept null so an edit can CLEAR them (e.g. remove a usage limit).
+const CouponFields = {
+  code: z.string().trim().min(1, 'Code is required').max(40).regex(/^\S+$/, 'Code cannot contain spaces'),
+  description: z.string().trim().max(255).nullable().optional(),
   discount_type: z.enum(['FLAT', 'PERCENT']),
-  discount_value: z.number().min(0),
-  min_order: z.number().min(0).optional(),
-  max_discount: z.number().min(0).optional(),
-  usage_limit: z.number().int().min(1).optional(),
-  valid_from: z.string().datetime().optional(),
-  valid_until: z.string().datetime().optional(),
+  discount_value: z.number().positive('Discount must be more than 0'),
+  min_order: z.number().min(0).nullable().optional(),
+  max_discount: z.number().min(0).nullable().optional(),
+  usage_limit: z.number().int().min(1).nullable().optional(),
+  valid_from: z.string().datetime({ offset: true }).nullable().optional(),
+  valid_until: z.string().datetime({ offset: true }).nullable().optional(),
   is_active: z.boolean().optional(),
-});
+};
+const CreateCouponSchema = z.object(CouponFields);
+const UpdateCouponSchema = z.object(CouponFields).partial();
+
+/** Turns a Postgres "duplicate key" error into a clear message for the owner. */
+function rethrowDuplicate(err: unknown): never {
+  if ((err as { code?: string })?.code === '23505') {
+    throw new ConflictError('A coupon with this code already exists');
+  }
+  throw err;
+}
 
 router.post('/', authenticate, authorize('ADMIN'), checkSubscription, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const b = CouponSchema.parse(req.body);
+    const b = CreateCouponSchema.parse(req.body);
+    const problem = couponRuleError(b);
+    if (problem) throw new BadRequestError(problem);
+
     const restaurantId = req.user!.restaurantId;
     const row = await withTenant(restaurantId, async (q) => {
       const result = await q(
@@ -132,35 +147,36 @@ router.post('/', authenticate, authorize('ADMIN'), checkSubscription, async (req
          b.valid_from ?? null, b.valid_until ?? null, b.is_active ?? true],
       );
       return result.rows[0];
-    });
+    }).catch(rethrowDuplicate);
     res.status(201).json(successResponse(row, { message: 'Coupon created' }));
   } catch (err) { next(err); }
 });
 
 router.patch('/:id', authenticate, authorize('ADMIN'), checkSubscription, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const b = CouponSchema.partial().parse(req.body);
+    const b = UpdateCouponSchema.parse(req.body);
     const restaurantId = req.user!.restaurantId;
+
     const row = await withTenant(restaurantId, async (q) => {
-      const result = await q(
-        `UPDATE coupons SET
-           description = COALESCE($2, description),
-           discount_type = COALESCE($3, discount_type),
-           discount_value = COALESCE($4, discount_value),
-           min_order = COALESCE($5, min_order),
-           max_discount = COALESCE($6, max_discount),
-           usage_limit = COALESCE($7, usage_limit),
-           valid_from = COALESCE($8, valid_from),
-           valid_until = COALESCE($9, valid_until),
-           is_active = COALESCE($10, is_active),
-           updated_at = NOW()
-         WHERE id = $1 RETURNING *`,
-        [req.params.id, b.description ?? null, b.discount_type ?? null, b.discount_value ?? null,
-         b.min_order ?? null, b.max_discount ?? null, b.usage_limit ?? null,
-         b.valid_from ?? null, b.valid_until ?? null, b.is_active ?? null],
-      );
+      const existing = await q(`SELECT * FROM coupons WHERE id = $1`, [req.params.id]);
+      if (existing.rows.length === 0) return undefined;
+      const cur = existing.rows[0];
+
+      // Check the rules against the FINAL values (what is sent + what is kept).
+      const problem = couponRuleError({
+        discount_type: b.discount_type ?? cur.discount_type,
+        discount_value: b.discount_value ?? cur.discount_value,
+        valid_from: b.valid_from !== undefined ? b.valid_from : cur.valid_from,
+        valid_until: b.valid_until !== undefined ? b.valid_until : cur.valid_until,
+      });
+      if (problem) throw new BadRequestError(problem);
+
+      const update = buildCouponUpdate(String(req.params.id), b as Record<string, unknown>);
+      if (!update) return cur; // nothing to change
+      const result = await q(update.sql, update.values);
       return result.rows[0];
-    });
+    }).catch(rethrowDuplicate);
+
     if (!row) throw new NotFoundError('Coupon not found');
     res.json(successResponse(row, { message: 'Coupon updated' }));
   } catch (err) { next(err); }
