@@ -29,7 +29,13 @@ const router = Router();
 
 async function getRestaurantBySlug(slug: string) {
   const result = await query(
-    `SELECT id, name, slug, qr_mode, qsr_enabled, token_prefix, token_daily_reset, logo_url, hero_image_url, tagline FROM restaurants WHERE slug = $1 LIMIT 1`,
+    `SELECT id, name, slug, qr_mode, qsr_enabled, token_prefix, token_daily_reset, logo_url, hero_image_url, tagline,
+            tax_rate::float8 AS tax_rate, tax_inclusive,
+            discount_percent::float8 AS discount_percent,
+            service_charge_percent::float8 AS service_charge_percent,
+            other_charges_percent::float8 AS other_charges_percent,
+            extra_charges_amount::float8 AS extra_charges_amount
+     FROM restaurants WHERE slug = $1 LIMIT 1`,
     [slug],
   );
   return result.rows[0] || null;
@@ -130,6 +136,15 @@ router.get('/menu/:slug', async (req: Request, res: Response, next: NextFunction
           hero_image_url: restaurant.hero_image_url || null,
           tagline: restaurant.tagline || null,
           accent_color: themeRow.rows[0]?.secondary_color || null,
+          // Bill settings, so the customer's cart shows the same GST / charges as the staff bill
+          billing: {
+            tax_rate: Number(restaurant.tax_rate ?? 0),
+            tax_inclusive: Boolean(restaurant.tax_inclusive),
+            discount_percent: Number(restaurant.discount_percent ?? 0),
+            service_charge_percent: Number(restaurant.service_charge_percent ?? 0),
+            other_charges_percent: Number(restaurant.other_charges_percent ?? 0),
+            extra_charges_amount: Number(restaurant.extra_charges_amount ?? 0),
+          },
         },
         categories: categories.filter((c) => c.is_active),
         items: itemsWithModifiers,
