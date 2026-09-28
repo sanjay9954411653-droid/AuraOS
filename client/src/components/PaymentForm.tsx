@@ -75,8 +75,10 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
       api.get(`/orders/${selectedOrderId}`),
       api.get('/payments', { params: { limit: 500 } }),
       api.get('/restaurants/me'),
+      // Coupon staff applied on the Bill screen (older backend: no coupon)
+      api.get(`/coupons/order/${selectedOrderId}`).catch(() => null),
     ])
-      .then(([orderRes, paymentsRes, restRes]) => {
+      .then(([orderRes, paymentsRes, restRes, couponRes]) => {
         if (cancelled) return
 
         const data = orderRes.data.data
@@ -93,6 +95,11 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             )
           : Number(ord?.total_amount || 0)
 
+        // Discount already baked into total_amount (QR coupon / points)
+        const baked = orderItems.length
+          ? Math.max(0, rawSubtotal - Number(ord?.total_amount || 0))
+          : 0
+
         const r = restRes.data.data || {}
         const grand = calcBill(rawSubtotal, {
           tax_rate: Number(r.tax_rate ?? 5),
@@ -101,7 +108,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
           service_charge_percent: Number(r.service_charge_percent ?? 0),
           other_charges_percent: Number(r.other_charges_percent ?? 0),
           extra_charges_amount: Number(r.extra_charges_amount ?? 0),
-        }).grandTotal
+        }, Number(couponRes?.data?.data?.discount || 0) + baked).grandTotal
 
         const total = Math.round(grand * 100) / 100
 

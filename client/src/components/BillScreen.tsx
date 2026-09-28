@@ -22,6 +22,7 @@ import Loading from './Loading'
 import PaymentForm from './PaymentForm'
 import { PrinterIcon, CurrencyDollarIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { calcBill } from '../lib/billing'
+import { couponApi } from '../lib/growthApi'
 
 interface RestaurantInfo {
   name: string
@@ -73,6 +74,46 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
   const [restaurant, setRestaurant] = useState<RestaurantInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [paymentOpen, setPaymentOpen] = useState(false)
+  const [coupon, setCoupon] = useState<{ code: string | null; discount: number }>({ code: null, discount: 0 })
+  const [couponInput, setCouponInput] = useState('')
+  const [couponBusy, setCouponBusy] = useState(false)
+
+  const loadCoupon = () =>
+    couponApi
+      .forOrder(orderId)
+      .then((res) => setCoupon({ code: res.data.data?.code ?? null, discount: Number(res.data.data?.discount || 0) }))
+      .catch(() => {})
+
+  useEffect(() => { loadCoupon() }, [orderId])
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim()
+    if (!code) return
+    setCouponBusy(true)
+    try {
+      const res = await couponApi.applyToOrder(orderId, code)
+      setCoupon({ code: res.data.data.code, discount: Number(res.data.data.discount || 0) })
+      setCouponInput('')
+      toast.success('Coupon applied')
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setCouponBusy(false)
+    }
+  }
+
+  const removeCoupon = async () => {
+    setCouponBusy(true)
+    try {
+      await couponApi.removeFromOrder(orderId)
+      setCoupon({ code: null, discount: 0 })
+      toast.success('Coupon removed')
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setCouponBusy(false)
+    }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -172,7 +213,9 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
   if (!order || !restaurant) return null
 
   const rawSubtotal = items.reduce((s, i) => s + Number(i.unit_price || 0) * i.quantity, 0)
-  const { subtotal, discount, serviceCharge, otherCharges, extra, cgst, sgst, grandTotal } = calcBill(rawSubtotal, restaurant)
+  // QR orders can already have a coupon / points discount baked into total_amount.
+  const bakedDiscount = items.length ? Math.max(0, rawSubtotal - Number(order.total_amount || 0)) : 0
+  const { subtotal, discount, coupon: couponAmount, serviceCharge, otherCharges, extra, cgst, sgst, grandTotal } = calcBill(rawSubtotal, restaurant, coupon.discount + bakedDiscount)
   const isParcel = order.order_type !== 'DINE_IN'
   const visibleSocialLinks = restaurant.bill_social_keys
     .map((key) => ({ key, url: restaurant.social_links[key], label: SOCIAL_LABELS[key] || key }))
@@ -300,6 +343,12 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
                 <span>-{fmt(discount)}</span>
               </div>
             )}
+            {couponAmount > 0 && (
+              <div className="flex justify-between text-emerald-600 text-xs">
+                <span>{coupon.code ? `Coupon (${coupon.code})` : 'Coupon / points discount'}</span>
+                <span>-{fmt(couponAmount)}</span>
+              </div>
+            )}
             {serviceCharge > 0 && (
               <div className="flex justify-between text-gray-500 text-xs">
                 <span>Service Charge ({restaurant.service_charge_percent}%)</span>
@@ -397,6 +446,31 @@ const BillScreen: React.FC<BillScreenProps> = ({ orderId, tableNumber, onClose, 
             {restaurant.gstin && <p className="mt-0.5">This is a computer generated bill</p>}
           </div>
         </div>
+      </div>
+
+      {/* Staff coupon (not part of the printed bill) */}
+      <div className="px-4 pt-3 border-t border-gray-200 shrink-0">
+        {coupon.code ? (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-emerald-700 font-medium">Coupon {coupon.code} applied</span>
+            <button type="button" disabled={couponBusy} onClick={removeCoupon} className="text-red-600 text-xs font-medium px-2 py-1">
+              Remove
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              value={couponInput}
+              onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+              onKeyDown={(e) => { if (e.key === 'Enter') applyCoupon() }}
+              placeholder="Coupon code"
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <Button variant="outline" onClick={applyCoupon} disabled={couponBusy || !couponInput.trim()}>
+              Apply
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Action buttons */}
