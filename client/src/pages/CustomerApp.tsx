@@ -28,6 +28,7 @@ import {
   ArrowUpIcon,
   Bars3Icon,
 } from '@heroicons/react/24/outline'
+import { calcBill, normalizeBilling, LEGACY_BILLING, type BillingSettings } from '../lib/billing'
 import {
   CustomerMenuDrawer,
   LiveOrderBanner,
@@ -105,6 +106,8 @@ interface OrderConfirmation {
   items_count: number
   payment_method: PaymentMethod
   qr_mode: QRMode
+  /** Final amount incl. GST and charges, as shown in the cart when the order was placed */
+  payable_total?: number
 }
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string; desc: string }[] = [
@@ -211,6 +214,7 @@ const CustomerApp: React.FC = () => {
   const tracked = useTrackedOrders(slug)
   const [notice, setNotice] = useState('')
   const [diet, setDiet] = useState<DietFilter>('ALL')
+  const [billing, setBilling] = useState<BillingSettings>(LEGACY_BILLING)
   const [ratingSummary, setRatingSummary] = useState<{ count: number; average: number } | null>(null)
   const [infoError, setInfoError] = useState('')
 
@@ -252,6 +256,7 @@ const CustomerApp: React.FC = () => {
           accent_color: data.restaurant.accent_color || '',
         })
         setQrMode(data.restaurant.qr_mode || 'restaurant')
+        setBilling(normalizeBilling(data.restaurant.billing))
         setCategories(data.categories || [])
         setItems(data.items || [])
         // Remove any restored cart lines whose dish is no longer on the menu
@@ -463,7 +468,7 @@ const CustomerApp: React.FC = () => {
 
   const cartTotal = cart.reduce((s, c) => s + c.price * c.quantity, 0)
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0)
-  const tax = cartTotal * 0.18
+  const bill = calcBill(cartTotal, billing)
 
   // ── Modifier selection helpers ─────────────────────────────────────────────
   const openModifierModal = (item: MenuItem) => {
@@ -605,6 +610,7 @@ const CustomerApp: React.FC = () => {
       saveCustomerOrder(slug, {
         order_number: data.order_number,
         total_amount: Number(data.total_amount),
+        grand_total: bill.grandTotal,
         items_count: cart.reduce((n, c) => n + c.quantity, 0),
         payment_method: data.payment_method || paymentMethod,
         table_number: qrMode === 'restaurant' ? (tableNumber || tables.find((t) => t.id === tableId)?.table_number) : undefined,
@@ -623,7 +629,7 @@ const CustomerApp: React.FC = () => {
         return
       }
 
-      setConfirmation(data)
+      setConfirmation({ ...data, payable_total: bill.grandTotal })
       setCart([])
       setCartOpen(false)
     } catch (err: any) {
@@ -668,7 +674,7 @@ const CustomerApp: React.FC = () => {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature:  response.razorpay_signature,
             })
-            setConfirmation({ ...orderData, payment_method: paymentMethod })
+            setConfirmation({ ...orderData, payment_method: paymentMethod, payable_total: bill.grandTotal })
             setCart([])
             setCartOpen(false)
             resolve()
@@ -725,13 +731,13 @@ const CustomerApp: React.FC = () => {
             </div>
             <div className="flex justify-between font-bold text-gray-900 text-base border-t pt-3">
               <span>Total</span>
-              <span>{formatCurrency(Number(confirmation.total_amount) * 1.18)}</span>
+              <span>{formatCurrency(confirmation.payable_total ?? Number(confirmation.total_amount) * 1.18)}</span>
             </div>
           </div>
 
           {!isPaid && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 text-sm text-amber-700">
-              💵 Please pay <strong>{formatCurrency(Number(confirmation.total_amount) * 1.18)}</strong> at the counter when collecting your order.
+              💵 Please pay <strong>{formatCurrency(confirmation.payable_total ?? Number(confirmation.total_amount) * 1.18)}</strong> at the counter when collecting your order.
             </div>
           )}
 
@@ -1413,11 +1419,34 @@ const CustomerApp: React.FC = () => {
                 <div className="flex justify-between text-gray-500">
                   <span>Subtotal</span><span>{formatCurrency(cartTotal)}</span>
                 </div>
-                <div className="flex justify-between text-gray-500">
-                  <span>GST (18%)</span><span>{formatCurrency(tax)}</span>
-                </div>
+                {bill.discount > 0 && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Discount ({billing.discount_percent}%)</span><span>−{formatCurrency(bill.discount)}</span>
+                  </div>
+                )}
+                {bill.serviceCharge > 0 && (
+                  <div className="flex justify-between text-gray-500">
+                    <span>Service charge ({billing.service_charge_percent}%)</span><span>{formatCurrency(bill.serviceCharge)}</span>
+                  </div>
+                )}
+                {bill.otherCharges > 0 && (
+                  <div className="flex justify-between text-gray-500">
+                    <span>Other charges ({billing.other_charges_percent}%)</span><span>{formatCurrency(bill.otherCharges)}</span>
+                  </div>
+                )}
+                {bill.extra > 0 && (
+                  <div className="flex justify-between text-gray-500">
+                    <span>Extra charges</span><span>{formatCurrency(bill.extra)}</span>
+                  </div>
+                )}
+                {billing.tax_rate > 0 && (
+                  <div className="flex justify-between text-gray-500">
+                    <span>GST ({billing.tax_rate}%{billing.tax_inclusive ? ', included in prices' : ''})</span>
+                    <span>{formatCurrency(bill.taxAmount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-bold text-gray-900 text-base border-t pt-2">
-                  <span>Total</span><span>{formatCurrency(cartTotal + tax)}</span>
+                  <span>Total</span><span>{formatCurrency(bill.grandTotal)}</span>
                 </div>
               </div>
 
@@ -1446,7 +1475,7 @@ const CustomerApp: React.FC = () => {
                 ) : (
                   <>
                     <CheckCircleIcon className="w-5 h-5" />
-                    Place Order · {formatCurrency(cartTotal + tax)}
+                    Place Order · {formatCurrency(bill.grandTotal)}
                   </>
                 )}
               </button>
