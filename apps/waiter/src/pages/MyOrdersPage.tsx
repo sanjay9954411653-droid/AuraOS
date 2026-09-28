@@ -62,13 +62,45 @@ const makePaymentLine = (id: number, amount = 0): PaymentLine => ({
 })
 
 const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) => {
-  const total = Number(order.total_amount || 0)
+  // What is actually left to collect: the bill's grand total (GST + charges,
+  // minus any coupon) minus anything already paid. Loaded from the server so
+  // it always matches what the server will accept.
+  const [total, setTotal] = useState(Number(order.total_amount || 0))
+  const [billTotal, setBillTotal] = useState(0)
+  const [alreadyPaid, setAlreadyPaid] = useState(0)
+  const [loaded, setLoaded] = useState(false)
   const [mode, setMode] = useState<'single' | 'split'>('single')
   const [method, setMethod] = useState<PaymentMethod>('CASH')
   const [amount, setAmount] = useState(total)
   const [reference, setReference] = useState('')
   const [splits, setSplits] = useState<PaymentLine[]>([makePaymentLine(1, total)])
   const [saving, setSaving] = useState(false)
+
+  const fmt2 = (n: number) =>
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(n)
+
+  useEffect(() => {
+    let cancelled = false
+    paymentsApi
+      .balance(order.id)
+      .then((res) => {
+        if (cancelled) return
+        const d = res.data.data
+        setBillTotal(d.total)
+        setAlreadyPaid(d.paid)
+        setTotal(d.balance)
+        setAmount(d.balance)
+        setSplits((prev) =>
+          prev.length >= 2 ? [makePaymentLine(1, d.balance), makePaymentLine(2, 0)] : [makePaymentLine(1, d.balance)],
+        )
+        setLoaded(true)
+      })
+      .catch(() => {
+        // Older backend without the balance endpoint: fall back to the old total
+        if (!cancelled) setLoaded(true)
+      })
+    return () => { cancelled = true }
+  }, [order.id])
 
   const splitTotal = splits.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
   const remaining = Math.max(0, total - splitTotal)
@@ -104,7 +136,7 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
         return
       }
       if (amount > total + 0.01) {
-        toast.error(`Amount cannot exceed ${formatCurrency(total)}`)
+        toast.error(`Amount cannot exceed ${fmt2(total)}`)
         return
       }
     } else {
@@ -178,8 +210,13 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
         {/* Total */}
         <div className="bg-indigo-50 rounded-xl px-4 py-3 flex items-center justify-between">
           <span className="text-sm text-indigo-700">Total due</span>
-          <span className="text-2xl font-bold text-indigo-700">{formatCurrency(total)}</span>
+          <span className="text-2xl font-bold text-indigo-700">{loaded ? fmt2(total) : '…'}</span>
         </div>
+        {loaded && alreadyPaid > 0 && (
+          <p className="text-xs text-gray-500 -mt-2">
+            Bill {fmt2(billTotal)} · already paid {fmt2(alreadyPaid)}
+          </p>
+        )}
 
         {/* Payment mode */}
         <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl">
@@ -350,7 +387,7 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
         {/* Confirm */}
         <button
           onClick={handlePay}
-          disabled={saving}
+          disabled={saving || !loaded || total <= 0}
           className="btn-primary w-full flex items-center justify-center gap-2 py-3 text-base font-semibold"
         >
           {saving ? (
@@ -361,8 +398,8 @@ const PaymentSheet: React.FC<PaymentSheetProps> = ({ order, onClose, onPaid }) =
           {saving
             ? 'Recording…'
             : mode === 'split'
-              ? `Confirm Split — ${formatCurrency(splitTotal)}`
-              : `Confirm — ${formatCurrency(amount)}`}
+              ? `Confirm Split — ${fmt2(splitTotal)}`
+              : `Confirm — ${fmt2(amount)}`}
         </button>
       </div>
     </div>
