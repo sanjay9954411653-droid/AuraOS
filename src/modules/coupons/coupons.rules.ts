@@ -64,3 +64,42 @@ export function buildCouponUpdate(
     values,
   };
 }
+
+/**
+ * Pure discount calculation, shared by the public validate endpoint and order
+ * placement. Returns the rupee discount (>= 0) or a reason it doesn't apply.
+ */
+export function computeCouponDiscount(
+  coupon: {
+    discount_type: 'FLAT' | 'PERCENT';
+    discount_value: number;
+    min_order: number;
+    max_discount: number | null;
+    usage_limit: number | null;
+    used_count: number;
+    valid_from: string | null;
+    valid_until: string | null;
+    is_active: boolean;
+  },
+  orderTotal: number,
+  now: Date = new Date(),
+): { valid: boolean; discount: number; message?: string } {
+  if (!coupon.is_active) return { valid: false, discount: 0, message: 'Coupon is not active' };
+  if (coupon.valid_from && now < new Date(coupon.valid_from)) return { valid: false, discount: 0, message: 'Coupon not yet valid' };
+  if (coupon.valid_until && now > new Date(coupon.valid_until)) return { valid: false, discount: 0, message: 'Coupon has expired' };
+  if (coupon.usage_limit != null && coupon.used_count >= coupon.usage_limit) return { valid: false, discount: 0, message: 'Coupon usage limit reached' };
+  if (orderTotal < Number(coupon.min_order)) {
+    return { valid: false, discount: 0, message: `Minimum order ₹${Number(coupon.min_order).toFixed(0)}` };
+  }
+
+  let discount =
+    coupon.discount_type === 'PERCENT'
+      ? (orderTotal * Number(coupon.discount_value)) / 100
+      : Number(coupon.discount_value);
+
+  if (coupon.max_discount != null) discount = Math.min(discount, Number(coupon.max_discount));
+  discount = Math.min(discount, orderTotal); // never exceed the bill
+  discount = Math.round(discount * 100) / 100;
+
+  return { valid: true, discount };
+}

@@ -20,46 +20,10 @@ import { NotFoundError, ConflictError, BadRequestError } from '@/shared/errors/A
 import { authenticate, AuthenticatedRequest } from '@/shared/middleware/authenticate';
 import { authorize } from '@/shared/middleware/authorize';
 import { checkSubscription } from '@/shared/middleware/checkSubscription';
-import { couponRuleError, buildCouponUpdate } from './coupons.rules';
+import { couponRuleError, buildCouponUpdate, computeCouponDiscount } from './coupons.rules';
+import { getOrderCouponDiscount } from '@/shared/billing';
 
-/**
- * Pure discount calculation, shared by the public validate endpoint and order
- * placement. Returns the rupee discount (>= 0) or a reason it doesn't apply.
- */
-export function computeCouponDiscount(
-  coupon: {
-    discount_type: 'FLAT' | 'PERCENT';
-    discount_value: number;
-    min_order: number;
-    max_discount: number | null;
-    usage_limit: number | null;
-    used_count: number;
-    valid_from: string | null;
-    valid_until: string | null;
-    is_active: boolean;
-  },
-  orderTotal: number,
-  now: Date = new Date(),
-): { valid: boolean; discount: number; message?: string } {
-  if (!coupon.is_active) return { valid: false, discount: 0, message: 'Coupon is not active' };
-  if (coupon.valid_from && now < new Date(coupon.valid_from)) return { valid: false, discount: 0, message: 'Coupon not yet valid' };
-  if (coupon.valid_until && now > new Date(coupon.valid_until)) return { valid: false, discount: 0, message: 'Coupon has expired' };
-  if (coupon.usage_limit != null && coupon.used_count >= coupon.usage_limit) return { valid: false, discount: 0, message: 'Coupon usage limit reached' };
-  if (orderTotal < Number(coupon.min_order)) {
-    return { valid: false, discount: 0, message: `Minimum order ₹${Number(coupon.min_order).toFixed(0)}` };
-  }
-
-  let discount =
-    coupon.discount_type === 'PERCENT'
-      ? (orderTotal * Number(coupon.discount_value)) / 100
-      : Number(coupon.discount_value);
-
-  if (coupon.max_discount != null) discount = Math.min(discount, Number(coupon.max_discount));
-  discount = Math.min(discount, orderTotal); // never exceed the bill
-  discount = Math.round(discount * 100) / 100;
-
-  return { valid: true, discount };
-}
+export { computeCouponDiscount };
 
 // ── Public validate router (mounted under /public) ─────────────────────────────
 export const publicCouponRouter = Router();
@@ -190,6 +154,105 @@ router.delete('/:id', authenticate, authorize('ADMIN'), async (req: Authenticate
     });
     if (!deleted) throw new NotFoundError('Coupon not found');
     res.json(successResponse({ id: deleted.id }, { message: 'Coupon deleted' }));
+  } catch (err) { next(err); }
+});
+
+// ── Staff: apply / remove a coupon on an open order (Bill / payment screen) ────
+const STAFF_ROLES = ['ADMIN', 'WAITER', 'RECEPTION', 'KITCHEN'] as const;
+
+/** Current coupon + discount for an order (recomputed on the live subtotal). */
+router.get('/order/:orderId', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const restaurantId = req.user!.restaurantId;
+    const out = await withTenant(restaurantId, async (q) => {
+      const o = await q(`SELECT total_amount FROM orders WHERE id = $1 AND restaurant_id = $2`, [req.params.orderId, restaurantId]);
+      if (o.rows.length === 0) return undefined;
+      return getOrderCouponDiscount(q, restaurantId, String(req.params.orderId), Number(o.rows[0].total_amount || 0));
+    });
+    if (!out) throw new NotFoundError('Order not found');
+    res.json(successResponse(out));
+  } catch (err) { next(err); }
+});
+
+const ApplySchema = z.object({
+  order_id: z.string().uuid(),
+  code: z.string().trim().min(1).max(40),
+});
+
+router.post('/apply', authenticate, authorize(...STAFF_ROLES), checkSubscription, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { order_id, code } = ApplySchema.parse(req.body);
+    const restaurantId = req.user!.restaurantId;
+
+    const out = await withTenant(restaurantId, async (q) => {
+      const o = await q(`SELECT id, status, total_amount, coupon_code FROM orders WHERE id = $1 AND restaurant_id = $2 FOR UPDATE`, [order_id, restaurantId]);
+      if (o.rows.length === 0) throw new NotFoundError('Order not found');
+      const order = o.rows[0];
+      if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+        throw new BadRequestError('Coupons can only be applied to open orders');
+      }
+      const subtotal = Number(order.total_amount || 0);
+
+      const c = await q(`SELECT * FROM coupons WHERE restaurant_id = $1 AND UPPER(code) = UPPER($2) LIMIT 1`, [restaurantId, code]);
+      if (c.rows.length === 0) throw new BadRequestError('Invalid coupon code');
+      const coupon = c.rows[0];
+
+      // Same coupon already on this order: nothing to do (don't consume twice).
+      if (order.coupon_code && String(order.coupon_code).toUpperCase() === String(coupon.code).toUpperCase()) {
+        const same = computeCouponDiscount({ ...coupon, used_count: Math.max(0, Number(coupon.used_count) - 1) }, subtotal);
+        return { code: coupon.code, discount: same.valid ? same.discount : 0 };
+      }
+
+      const result = computeCouponDiscount(coupon, subtotal);
+      if (!result.valid) throw new BadRequestError(result.message || 'Coupon cannot be applied');
+
+      // Consume one use (guarded so the usage limit can't be exceeded).
+      const used = await q(
+        `UPDATE coupons SET used_count = used_count + 1, updated_at = NOW()
+         WHERE id = $1 AND (usage_limit IS NULL OR used_count < usage_limit) RETURNING id`,
+        [coupon.id],
+      );
+      if (used.rows.length === 0) throw new BadRequestError('Coupon usage limit reached');
+
+      // Swapping coupons: give the previous coupon its use back.
+      if (order.coupon_code) {
+        await q(
+          `UPDATE coupons SET used_count = GREATEST(used_count - 1, 0), updated_at = NOW()
+           WHERE restaurant_id = $1 AND UPPER(code) = UPPER($2)`,
+          [restaurantId, order.coupon_code],
+        );
+      }
+
+      await q(`UPDATE orders SET coupon_code = $2, updated_at = NOW() WHERE id = $1`, [order_id, coupon.code]);
+      return { code: coupon.code, discount: result.discount };
+    });
+
+    res.json(successResponse(out, { message: 'Coupon applied' }));
+  } catch (err) { next(err); }
+});
+
+router.delete('/apply/:orderId', authenticate, authorize(...STAFF_ROLES), checkSubscription, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const restaurantId = req.user!.restaurantId;
+    const found = await withTenant(restaurantId, async (q) => {
+      const o = await q(`SELECT id, status, coupon_code FROM orders WHERE id = $1 AND restaurant_id = $2 FOR UPDATE`, [req.params.orderId, restaurantId]);
+      if (o.rows.length === 0) return false;
+      const order = o.rows[0];
+      if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+        throw new BadRequestError('This order is already closed');
+      }
+      if (order.coupon_code) {
+        await q(
+          `UPDATE coupons SET used_count = GREATEST(used_count - 1, 0), updated_at = NOW()
+           WHERE restaurant_id = $1 AND UPPER(code) = UPPER($2)`,
+          [restaurantId, order.coupon_code],
+        );
+        await q(`UPDATE orders SET coupon_code = NULL, updated_at = NOW() WHERE id = $1`, [req.params.orderId]);
+      }
+      return true;
+    });
+    if (!found) throw new NotFoundError('Order not found');
+    res.json(successResponse({ code: null, discount: 0 }, { message: 'Coupon removed' }));
   } catch (err) { next(err); }
 });
 
