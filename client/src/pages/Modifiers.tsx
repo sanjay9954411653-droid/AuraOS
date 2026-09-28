@@ -57,6 +57,17 @@ interface OptionFormData {
   price_adjustment: string // kept as text while typing so "-" and "." work; parsed on save
 }
 
+// Postgres DECIMAL columns reach the browser as strings ("20.00"), which breaks
+// .toFixed() and comparisons. Normalise once, at the API boundary.
+const normalizeOption = (o: ModifierOption): ModifierOption => ({
+  ...o,
+  price_adjustment: Number(o.price_adjustment) || 0,
+})
+const normalizeGroup = (g: ModifierGroup): ModifierGroup => ({
+  ...g,
+  options: (g.options || []).map(normalizeOption),
+})
+
 const defaultGroupForm: GroupFormData = {
   name: '',
   selection_type: 'single',
@@ -97,7 +108,7 @@ const Modifiers: React.FC = () => {
   const fetchGroups = async () => {
     try {
       const res = await api.get('/modifiers/groups')
-      setGroups(res.data.data || [])
+      setGroups((res.data.data || []).map(normalizeGroup))
     } catch (err) {
       toast.error(getErrorMessage(err))
     } finally {
@@ -175,12 +186,12 @@ const Modifiers: React.FC = () => {
       if (editingGroup) {
         const res = await api.put(`/modifiers/groups/${editingGroup.id}`, groupPayload)
         setGroups((p) =>
-          p.map((g) => (g.id === editingGroup.id ? { ...g, ...res.data.data } : g))
+          p.map((g) => (g.id === editingGroup.id ? { ...g, ...res.data.data, options: g.options } : g))
         )
         toast.success('Modifier group updated')
       } else {
         const res = await api.post('/modifiers/groups', groupPayload)
-        setGroups((p) => [...p, res.data.data])
+        setGroups((p) => [...p, normalizeGroup(res.data.data)])
         toast.success('Modifier group created')
       }
       setGroupFormOpen(false)
@@ -242,7 +253,7 @@ const Modifiers: React.FC = () => {
             return {
               ...g,
               options: (g.options || []).map((o) =>
-                o.id === editingOption.id ? { ...o, ...res.data.data } : o
+                o.id === editingOption.id ? normalizeOption({ ...o, ...res.data.data }) : o
               ),
             }
           })
@@ -258,7 +269,7 @@ const Modifiers: React.FC = () => {
             if (g.id !== activeGroupId) return g
             return {
               ...g,
-              options: [...(g.options || []), res.data.data],
+              options: [...(g.options || []), normalizeOption(res.data.data)],
             }
           })
         )
@@ -291,9 +302,45 @@ const Modifiers: React.FC = () => {
     }
   }
 
+  // ── Activate / deactivate ────────────────────────────────────────────────────
+
+  const toggleGroupActive = async (group: ModifierGroup) => {
+    try {
+      const res = await api.put(`/modifiers/groups/${group.id}`, { is_active: !group.is_active })
+      setGroups((p) =>
+        p.map((g) => (g.id === group.id ? { ...g, is_active: res.data.data.is_active } : g))
+      )
+      toast.success(group.is_active ? 'Group hidden from customers' : 'Group is live again')
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    }
+  }
+
+  const toggleOptionActive = async (groupId: string, option: ModifierOption) => {
+    try {
+      const res = await api.put(`/modifiers/options/${option.id}`, { is_active: !option.is_active })
+      setGroups((p) =>
+        p.map((g) =>
+          g.id !== groupId
+            ? g
+            : {
+                ...g,
+                options: (g.options || []).map((o) =>
+                  o.id === option.id ? { ...o, is_active: res.data.data.is_active } : o
+                ),
+              }
+        )
+      )
+      toast.success(option.is_active ? 'Option hidden from customers' : 'Option is live again')
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    }
+  }
+
   // ── Format helpers ───────────────────────────────────────────────────────────
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (value: number | string) => {
+    const price = Number(value) || 0
     if (price === 0) return '₹0'
     if (price > 0) return `+₹${price.toFixed(2)}`
     return `-₹${Math.abs(price).toFixed(2)}`
@@ -397,6 +444,13 @@ const Modifiers: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => toggleGroupActive(group)}
+                    >
+                      {group.is_active ? 'Deactivate' : 'Activate'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => openEditGroup(group)}
                       leftIcon={<PencilIcon className="w-4 h-4" />}
                     >
@@ -462,12 +516,17 @@ const Modifiers: React.FC = () => {
                                     </Badge>
                                   </td>
                                   <td>
-                                    <Badge
-                                      variant={opt.is_active ? 'success' : 'default'}
-                                      dot
+                                    <button
+                                      onClick={() => toggleOptionActive(group.id, opt)}
+                                      title={opt.is_active ? 'Tap to hide from customers' : 'Tap to make available again'}
                                     >
-                                      {opt.is_active ? 'Active' : 'Inactive'}
-                                    </Badge>
+                                      <Badge
+                                        variant={opt.is_active ? 'success' : 'default'}
+                                        dot
+                                      >
+                                        {opt.is_active ? 'Active' : 'Inactive'}
+                                      </Badge>
+                                    </button>
                                   </td>
                                   <td>
                                     <div className="flex items-center gap-1">
