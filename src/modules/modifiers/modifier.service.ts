@@ -102,6 +102,14 @@ export class ModifierService {
     if (payload.min_select !== undefined) updates.min_select = payload.min_select;
     if (payload.max_select !== undefined) updates.max_select = payload.max_select;
     if (payload.sort_order !== undefined) updates.sort_order = payload.sort_order;
+    if (payload.is_active !== undefined) updates.is_active = payload.is_active;
+
+    // Keep the DB constraint (min_select <= max_select) from surfacing as a 500
+    const nextMin = updates.min_select ?? existing.min_select;
+    const nextMax = updates.max_select ?? existing.max_select;
+    if (nextMin > nextMax) {
+      throw new BadRequestError('Minimum selections cannot be more than maximum selections');
+    }
 
     const updated = await modifierRepository.updateGroup(groupId, updates);
     if (!updated) {
@@ -116,7 +124,15 @@ export class ModifierService {
       throw new NotFoundError('Modifier group not found');
     }
 
-    const deleted = await modifierRepository.deleteGroup(groupId);
+    let deleted = false;
+    try {
+      deleted = await modifierRepository.deleteGroup(groupId);
+    } catch (err: any) {
+      if (err?.code === '23503') {
+        throw new ConflictError('This group was used in past orders and can\'t be deleted. Deactivate it instead.');
+      }
+      throw err;
+    }
     if (!deleted) {
       throw new NotFoundError('Modifier group not found');
     }
@@ -181,6 +197,7 @@ export class ModifierService {
     }
     if (payload.price_adjustment !== undefined) updates.price_adjustment = payload.price_adjustment;
     if (payload.sort_order !== undefined) updates.sort_order = payload.sort_order;
+    if (payload.is_active !== undefined) updates.is_active = payload.is_active;
 
     const updated = await modifierRepository.updateOption(optionId, updates);
     if (!updated) {
@@ -200,7 +217,15 @@ export class ModifierService {
       throw new NotFoundError('Modifier option not found');
     }
 
-    const deleted = await modifierRepository.deleteOption(optionId);
+    let deleted = false;
+    try {
+      deleted = await modifierRepository.deleteOption(optionId);
+    } catch (err: any) {
+      if (err?.code === '23503') {
+        throw new ConflictError('This option was used in past orders and can\'t be deleted. Deactivate it instead.');
+      }
+      throw err;
+    }
     if (!deleted) {
       throw new NotFoundError('Modifier option not found');
     }
