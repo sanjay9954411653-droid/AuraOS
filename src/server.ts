@@ -25,6 +25,14 @@ async function startServer() {
       console.warn('⚠️  Database connection failed, but continuing...');
     }
 
+    // Coupon staff can apply to an open order. Idempotent, so it is safe on every boot
+    // (mirrors migrations/037_order_coupon.sql for setups that don't auto-run migrations).
+    try {
+      await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(40)');
+    } catch (err) {
+      console.warn('⚠️  Could not ensure orders.coupon_code column:', err);
+    }
+
     // Initialise monitoring (Sentry if SENTRY_DSN is configured, else console)
     initMonitoring();
 
