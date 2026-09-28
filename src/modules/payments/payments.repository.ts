@@ -1,5 +1,6 @@
 import { pool, query } from '@/config/database';
 import { Payment, PaymentStats } from './payments.types';
+import { getOrderPayableTotal } from '@/shared/billing';
 
 export class PaymentsRepository {
   async createPayment(
@@ -69,7 +70,13 @@ export class PaymentsRepository {
         throw new Error('Cannot record payment for a cancelled order');
       }
 
-      const orderTotal = Number(order.total_amount || 0);
+      // total_amount is only the item subtotal; the payable amount is the bill's
+      // grand total (GST + charges), same as the Bill screen shows.
+      const orderTotal = await getOrderPayableTotal(
+        client,
+        restaurantId,
+        Number(order.total_amount || 0),
+      );
 
       // Sum all PAID payments for this order inside the same transaction
       // so we see the definitive committed state, not a stale snapshot.
