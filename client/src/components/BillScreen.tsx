@@ -21,6 +21,7 @@ import Button from './Button'
 import Loading from './Loading'
 import PaymentForm from './PaymentForm'
 import { PrinterIcon, CurrencyDollarIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { calcBill } from '../lib/billing'
 
 interface RestaurantInfo {
   name: string
@@ -60,52 +61,6 @@ interface BillScreenProps {
   tableNumber?: string
   onClose: () => void
   onCompleted: () => void
-}
-
-/**
- * Full bill calculation, in order:
- *   1. Discount % off the raw item subtotal
- *   2. Service charge % + Other charges % (on the discounted amount)
- *   3. Flat extra charge
- *   4. GST (CGST+SGST, or IGST for parcel/online) on the taxable base
- */
-function calcBill(
-  rawSubtotal: number,
-  restaurant: Pick<RestaurantInfo, 'tax_rate' | 'tax_inclusive' | 'discount_percent' | 'service_charge_percent' | 'other_charges_percent' | 'extra_charges_amount'>,
-) {
-  const { tax_rate: taxRate, tax_inclusive: inclusive } = restaurant
-  const discount = (rawSubtotal * (restaurant.discount_percent || 0)) / 100
-  const afterDiscount = rawSubtotal - discount
-
-  let base: number
-  let preTaxTotal: number
-  let taxAmount: number
-
-  if (inclusive && taxRate > 0) {
-    // Prices already include GST — back-calculate the base from the discounted amount
-    base = afterDiscount / (1 + taxRate / 100)
-    taxAmount = afterDiscount - base
-    preTaxTotal = base
-  } else {
-    base = afterDiscount
-    preTaxTotal = afterDiscount
-    taxAmount = 0
-  }
-
-  const serviceCharge = (preTaxTotal * (restaurant.service_charge_percent || 0)) / 100
-  const otherCharges = (preTaxTotal * (restaurant.other_charges_percent || 0)) / 100
-  const extra = restaurant.extra_charges_amount || 0
-
-  if (!inclusive && taxRate > 0) {
-    const taxableBase = preTaxTotal + serviceCharge + otherCharges + extra
-    taxAmount = (taxableBase * taxRate) / 100
-  }
-
-  const cgst = taxAmount / 2
-  const sgst = taxAmount / 2
-  const grandTotal = preTaxTotal + serviceCharge + otherCharges + extra + taxAmount
-
-  return { subtotal: rawSubtotal, discount, serviceCharge, otherCharges, extra, taxAmount, cgst, sgst, grandTotal }
 }
 
 const fmt = (n: number) =>

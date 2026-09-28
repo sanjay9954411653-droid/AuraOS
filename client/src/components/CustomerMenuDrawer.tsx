@@ -41,6 +41,7 @@ export interface SavedOrderLine {
 export interface SavedCustomerOrder {
   order_number: string
   total_amount: number // as returned when the order was placed (before GST)
+  grand_total?: number // what the customer saw and pays, incl. GST and charges
   items_count: number
   payment_method: string
   table_number?: string
@@ -55,8 +56,9 @@ const ONGOING_WINDOW_MS = 12 * 60 * 60 * 1000
 const POLL_MS = 15000
 const ordersKey = (slug: string) => `auraos_orders:${slug}`
 
-// The order confirmation screen shows total × 1.18 (GST); history matches it.
-const withGst = (amount: number) => Number(amount) * 1.18
+// Orders placed before charges were saved fall back to the old flat 18% GST figure.
+const orderTotal = (o: { total_amount: number; grand_total?: number }) =>
+  o.grand_total ?? Number(o.total_amount) * 1.18
 
 export function loadSavedCustomerOrders(slug: string): SavedCustomerOrder[] {
   try {
@@ -362,7 +364,7 @@ function OrdersPanel({
                       {o.table_number ? `Table ${o.table_number} · ` : ''}
                       {o.items_count} {o.items_count === 1 ? 'item' : 'items'}
                     </span>
-                    <span className="font-bold text-[color:var(--accent)]">{formatCurrency(withGst(o.total_amount))}</span>
+                    <span className="font-bold text-[color:var(--accent)]">{formatCurrency(orderTotal(o))}</span>
                   </div>
                  {(o.items && o.items.length > 0) && (
   <details className="mt-3 border-t border-gray-100 pt-3">
