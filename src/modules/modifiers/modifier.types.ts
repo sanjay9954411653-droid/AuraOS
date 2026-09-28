@@ -21,6 +21,7 @@ export const UpdateModifierGroupRequestSchema = z.object({
   min_select: z.number().int().min(0).optional(),
   max_select: z.number().int().min(1).optional(),
   sort_order: z.number().int().min(0).optional(),
+  is_active: z.boolean().optional(),
 });
 
 // ── Modifier Option Schemas ─────────────────────────────────────────────────
@@ -35,6 +36,7 @@ export const UpdateModifierOptionRequestSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   price_adjustment: z.number().optional(),
   sort_order: z.number().int().min(0).optional(),
+  is_active: z.boolean().optional(),
 });
 
 // ── Attach modifier groups to menu items ────────────────────────────────────
