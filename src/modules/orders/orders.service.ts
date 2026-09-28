@@ -243,9 +243,10 @@ export class OrdersService {
     // is pending would leave the order double-paid once the webhook arrives.
     if (payload.status === 'COMPLETED') {
       const orderTotal = await getOrderPayableTotal(
-        pool,
+        (t, p) => pool.query(t, p),
         restaurantId,
         Number(order.total_amount || 0),
+        orderId,
       );
       if (orderTotal > 0) {
         const existingPayments = await paymentsRepository.findByOrderId(orderId);
