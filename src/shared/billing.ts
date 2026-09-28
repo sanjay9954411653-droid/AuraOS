@@ -17,6 +17,8 @@ export interface BillingSettings {
   extra_charges_amount: number;
 }
 
+import { computeCouponDiscount } from '@/modules/coupons/coupons.rules';
+
 const num = (v: unknown, fallback = 0): number => {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -33,11 +35,13 @@ export function normalizeBilling(r: Record<string, unknown> | null | undefined):
   };
 }
 
-export function calcGrandTotal(rawSubtotal: number, s: BillingSettings): number {
+export function calcGrandTotal(rawSubtotal: number, s: BillingSettings, couponDiscount = 0): number {
   const taxRate = s.tax_rate;
   const inclusive = s.tax_inclusive;
-  const discount = (rawSubtotal * s.discount_percent) / 100;
-  const afterDiscount = rawSubtotal - discount;
+  // Coupon first, then the restaurant's discount % on what is left (same as the client).
+  const base = Math.max(0, rawSubtotal - Math.max(0, couponDiscount));
+  const discount = (base * s.discount_percent) / 100;
+  const afterDiscount = base - discount;
 
   let preTaxTotal = afterDiscount;
   let taxAmount = 0;
@@ -58,19 +62,45 @@ export function calcGrandTotal(rawSubtotal: number, s: BillingSettings): number 
   return Math.round(grand * 100) / 100;
 }
 
-/** Minimal shape of a pg client/pool so this file has no DB import. */
-interface Queryable {
-  query: (text: string, params?: any[]) => Promise<{ rows: any[] }>;
+export type QueryFn = (text: string, params?: any[]) => Promise<{ rows: any[] }>;
+
+/** Coupon staff applied to an order + its discount on the current subtotal. */
+export async function getOrderCouponDiscount(
+  q: QueryFn,
+  restaurantId: string,
+  orderId: string,
+  subtotal: number,
+): Promise<{ code: string | null; discount: number }> {
+  const o = await q(`SELECT coupon_code FROM orders WHERE id = $1 AND restaurant_id = $2`, [orderId, restaurantId]);
+  const code: string | null = o.rows[0]?.coupon_code ?? null;
+  if (!code) return { code: null, discount: 0 };
+
+  const c = await q(
+    `SELECT * FROM coupons WHERE restaurant_id = $1 AND UPPER(code) = UPPER($2) LIMIT 1`,
+    [restaurantId, code],
+  );
+  if (c.rows.length === 0) return { code, discount: 0 };
+
+  // This order already holds one use of the coupon, so don't let that use
+  // count against the usage limit when re-checking it.
+  const coupon = { ...c.rows[0], used_count: Math.max(0, Number(c.rows[0].used_count) - 1) };
+  const r = computeCouponDiscount(coupon, subtotal);
+  return { code, discount: r.valid ? r.discount : 0 };
 }
 
-/** Grand total (incl. GST + charges) an order should be paid in full for. */
+/**
+ * Grand total (incl. GST + charges, minus any coupon staff applied) an order
+ * should be paid in full for. Pass inTx=true when q runs inside a transaction.
+ */
 export async function getOrderPayableTotal(
-  db: Queryable,
+  q: QueryFn,
   restaurantId: string,
   subtotal: number,
+  orderId?: string,
+  inTx = false,
 ): Promise<number> {
   if (!(subtotal > 0)) return 0;
-  const res = await db.query(
+  const res = await q(
     `SELECT tax_rate::float8 AS tax_rate, tax_inclusive,
             discount_percent::float8 AS discount_percent,
             service_charge_percent::float8 AS service_charge_percent,
@@ -79,5 +109,17 @@ export async function getOrderPayableTotal(
      FROM restaurants WHERE id = $1`,
     [restaurantId],
   );
-  return calcGrandTotal(subtotal, normalizeBilling(res.rows[0]));
+
+  let couponDiscount = 0;
+  if (orderId) {
+    try {
+      if (inTx) await q('SAVEPOINT coupon_lookup');
+      couponDiscount = (await getOrderCouponDiscount(q, restaurantId, orderId, subtotal)).discount;
+      if (inTx) await q('RELEASE SAVEPOINT coupon_lookup');
+    } catch {
+      // Coupon column not there yet / lookup failed: never block a payment.
+      if (inTx) await q('ROLLBACK TO SAVEPOINT coupon_lookup');
+    }
+  }
+  return calcGrandTotal(subtotal, normalizeBilling(res.rows[0]), couponDiscount);
 }
