@@ -6,6 +6,7 @@ import Modal from './Modal'
 import Button from './Button'
 import Input from './Input'
 import { formatCurrency } from '../lib/utils'
+import { calcBill } from '../lib/billing'
 import toast from 'react-hot-toast'
 
 const METHODS: PaymentMethod[] = ['CASH', 'CARD', 'UPI', 'ONLINE']
@@ -33,6 +34,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   const [selectedOrderId, setSelectedOrderId] = useState(initialOrderId)
 
   const [orderTotal, setOrderTotal] = useState(0)
+  const [totalLoaded, setTotalLoaded] = useState(false)
   const [alreadyPaid, setAlreadyPaid] = useState(0)
 
   const [amount, setAmount] = useState(0)
@@ -67,18 +69,41 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
     let cancelled = false
 
+    setTotalLoaded(false)
+
     Promise.all([
       api.get(`/orders/${selectedOrderId}`),
       api.get('/payments', { params: { limit: 500 } }),
+      api.get('/restaurants/me'),
     ])
-      .then(([orderRes, paymentsRes]) => {
+      .then(([orderRes, paymentsRes, restRes]) => {
         if (cancelled) return
 
-        const ord =
-          orderRes.data.data?.order ??
-          orderRes.data.data
+        const data = orderRes.data.data
+        const ord = data?.order ?? data
+        const orderItems: any[] =
+          ord?.items || ord?.order_items || data?.items || []
 
-        const total = Number(ord?.total_amount || 0)
+        // Same calculation as the Bill screen: item subtotal + discount,
+        // service/other charges and GST = the grand total the customer pays.
+        const rawSubtotal = orderItems.length
+          ? orderItems.reduce(
+              (sum, i) => sum + Number(i.unit_price || 0) * Number(i.quantity || 0),
+              0
+            )
+          : Number(ord?.total_amount || 0)
+
+        const r = restRes.data.data || {}
+        const grand = calcBill(rawSubtotal, {
+          tax_rate: Number(r.tax_rate ?? 5),
+          tax_inclusive: Boolean(r.tax_inclusive),
+          discount_percent: Number(r.discount_percent ?? 0),
+          service_charge_percent: Number(r.service_charge_percent ?? 0),
+          other_charges_percent: Number(r.other_charges_percent ?? 0),
+          extra_charges_amount: Number(r.extra_charges_amount ?? 0),
+        }).grandTotal
+
+        const total = Math.round(grand * 100) / 100
 
         const allPayments: Payment[] =
           paymentsRes.data.data?.items || []
@@ -96,6 +121,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
         setOrderTotal(total)
         setAlreadyPaid(paid)
+        setTotalLoaded(true)
 
         const remaining = Math.max(0, total - paid)
 
@@ -370,6 +396,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             fullWidth
             isLoading={saving}
             disabled={
+              !totalLoaded ||
               isFullyPaid ||
               (splitMode &&
                 (splitRemaining > 0 ||
@@ -443,9 +470,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
               </span>
 
               <span className="font-semibold text-slate-900">
-                {formatCurrency(
-                  orderTotal
-                )}
+                {totalLoaded
+                  ? formatCurrency(orderTotal)
+                  : '…'}
               </span>
             </div>
 
