@@ -73,9 +73,11 @@ export class PaymentsRepository {
       // total_amount is only the item subtotal; the payable amount is the bill's
       // grand total (GST + charges), same as the Bill screen shows.
       const orderTotal = await getOrderPayableTotal(
-        client,
+        (t, p) => client.query(t, p),
         restaurantId,
         Number(order.total_amount || 0),
+        orderId,
+        true,
       );
 
       // Sum all PAID payments for this order inside the same transaction
