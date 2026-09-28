@@ -400,8 +400,10 @@ const CustomerApp: React.FC = () => {
 
   // ── Calculate total price with modifiers ────────────────────────────────────
   const getEffectivePrice = (item: MenuItem, mods: SelectedModifier[]): number => {
-    const modAdjustment = mods.reduce((sum, m) => sum + m.price_adjustment, 0)
-    return item.price + modAdjustment
+    // item.price can arrive as a string ("340.00") — adding a number to it would
+    // join the text ("340.0020") instead of adding, so convert both to numbers.
+    const modAdjustment = mods.reduce((sum, m) => sum + (Number(m.price_adjustment) || 0), 0)
+    return (Number(item.price) || 0) + modAdjustment
   }
 
   // ── Cart helpers ───────────────────────────────────────────────────────────
@@ -425,6 +427,38 @@ const CustomerApp: React.FC = () => {
 
   const changeQty = (cartKey: string, delta: number) => {
     setCart((prev) => prev.map((c) => (c.cart_key === cartKey ? { ...c, quantity: c.quantity + delta } : c)).filter((c) => c.quantity > 0))
+  }
+
+  // Can this topping be taken off? Not if the group needs a minimum number of picks.
+  const canRemoveModifier = (line: CartLine, mod: SelectedModifier): boolean => {
+    const group = (itemModifierGroups[line.id] || []).find((g) => g.id === mod.group_id)
+    if (!group) return true
+    const picked = line.modifiers.filter((m) => m.group_id === mod.group_id).length
+    return picked > (group.min_select || 0)
+  }
+
+  // Take one topping off a cart line: reprice it and merge with an identical line if there is one.
+  const removeModifier = (cartKey: string, optionId: string) => {
+    setCart((prev) => {
+      const line = prev.find((c) => c.cart_key === cartKey)
+      if (!line) return prev
+      const removed = line.modifiers.find((m) => m.option_id === optionId)
+      if (!removed) return prev
+      const mods = line.modifiers.filter((m) => m.option_id !== optionId)
+      const newKey = makeCartKey(line.id, mods)
+      const updated: CartLine = {
+        ...line,
+        cart_key: newKey,
+        modifiers: mods,
+        price: line.price - (Number(removed.price_adjustment) || 0),
+      }
+      const rest = prev.filter((c) => c.cart_key !== cartKey)
+      const twin = rest.find((c) => c.cart_key === newKey)
+      if (twin) {
+        return rest.map((c) => (c.cart_key === newKey ? { ...c, quantity: c.quantity + line.quantity } : c))
+      }
+      return prev.map((c) => (c.cart_key === cartKey ? updated : c))
+    })
   }
 
   const cartTotal = cart.reduce((s, c) => s + c.price * c.quantity, 0)
@@ -658,12 +692,6 @@ const CustomerApp: React.FC = () => {
       const rzInstance = new (window as any).Razorpay(options)
       rzInstance.open()
     })
-  }
-
-  // ── Calculate modifier summary for display ─────────────────────────────────
-  const getModifierSummary = (mods: SelectedModifier[]): string => {
-    if (mods.length === 0) return ''
-    return mods.map((m) => `${m.option_name}${m.price_adjustment > 0 ? ` (+${formatCurrency(m.price_adjustment)})` : ''}`).join(', ')
   }
 
   // ── Order confirmation ─────────────────────────────────────────────────────
@@ -1333,13 +1361,32 @@ const CustomerApp: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
               {cart.map((line) => {
-                const modSummary = getModifierSummary(line.modifiers)
                 return (
                   <div key={line.cart_key} className="flex items-center gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 text-sm">{line.name}</p>
-                      {modSummary && (
-                        <p className="text-xs text-gray-400 mt-0.5">{modSummary}</p>
+                      {line.modifiers.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {line.modifiers.map((m) => (
+                            <span
+                              key={m.option_id}
+                              className="inline-flex items-center gap-1 rounded-full bg-gray-100 pl-2.5 pr-1.5 py-0.5 text-xs text-gray-600"
+                            >
+                              {m.option_name}
+                              {Number(m.price_adjustment) > 0 && ` (+${formatCurrency(Number(m.price_adjustment))})`}
+                              {canRemoveModifier(line, m) && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeModifier(line.cart_key, m.option_id)}
+                                  className="rounded-full p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+                                  aria-label={`Remove ${m.option_name}`}
+                                >
+                                  <XMarkIcon className="w-3 h-3" />
+                                </button>
+                              )}
+                            </span>
+                          ))}
+                        </div>
                       )}
                       <p className="text-xs text-gray-400">{formatCurrency(line.price)} each</p>
                     </div>
