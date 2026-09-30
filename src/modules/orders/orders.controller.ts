@@ -44,7 +44,6 @@ pushService
       tag: `new-order-${result.order.id}`,
       data: { url: '/kitchen', orderId: result.order.id },
     },
-    ['KITCHEN'],
   )
   .catch((err) => console.error('Kitchen push notify failed:', err?.message || err));
       res.status(201).json(successResponse(result, { message: 'Order created successfully' }));
